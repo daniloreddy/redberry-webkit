@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "redberry-webkit"
-version = "0.1.1"
+version = "0.1.2"
 description = "Shared, project-agnostic building blocks for FastAPI + NiceGUI apps: env resolution, dashboard auth, hot-reloadable config, logging redaction, timezone handling, credential-expiry watching."
 requires-python = ">=3.11"
 dependencies = [
