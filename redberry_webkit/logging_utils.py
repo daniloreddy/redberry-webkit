@@ -14,6 +14,7 @@ _PATTERNS = [
 
 
 def redact(text: str) -> str:
+    """Replace password/token/secret/bearer values in text with a redaction marker."""
     redacted = text
     for pattern in _PATTERNS:
         redacted = pattern.sub(lambda m: f"{m.group(1)}{_REDACTED}", redacted)
@@ -21,6 +22,8 @@ def redact(text: str) -> str:
 
 
 class CredentialFilter(logging.Filter):
+    """Logging filter that redacts secrets from every record's message before emission."""
+
     def filter(self, record: logging.LogRecord) -> bool:
         if record.args:
             record.msg = redact(record.getMessage())

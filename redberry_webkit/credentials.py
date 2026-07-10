@@ -21,6 +21,8 @@ _DEFAULT_EXPIRY_KEY_PATH: tuple[str, ...] = ("claudeAiOauth", "refreshTokenExpir
 
 @dataclass(frozen=True)
 class CredentialsStatus:
+    """Snapshot of a CLI tool's OAuth credential expiry, read from its JSON credentials file."""
+
     path: Path
     readable: bool
     expires_at_ms: int | None
@@ -28,16 +30,19 @@ class CredentialsStatus:
 
     @property
     def seconds_remaining(self) -> float | None:
+        """Seconds until expiry as of checked_at, or None if expiry is unknown."""
         if self.expires_at_ms is None:
             return None
         return self.expires_at_ms / 1000 - self.checked_at
 
     @property
     def is_expired(self) -> bool:
+        """True if the credential had already expired as of checked_at."""
         remaining = self.seconds_remaining
         return remaining is not None and remaining <= 0
 
     def is_near_expiry(self, warning_threshold_s: float) -> bool:
+        """True if the credential expires within warning_threshold_s seconds."""
         remaining = self.seconds_remaining
         return remaining is not None and 0 < remaining <= warning_threshold_s
 
@@ -45,6 +50,7 @@ class CredentialsStatus:
 def resolve_credentials_path(
     config_dir: str = "", *, default_dir_name: str = ".claude", filename: str = ".credentials.json"
 ) -> Path:
+    """Resolve the on-disk path to a CLI tool's credentials file (default: ~/.claude/.credentials.json)."""
     base = Path(config_dir) if config_dir.strip() else Path.home() / default_dir_name
     return base / filename
 
@@ -52,6 +58,7 @@ def resolve_credentials_path(
 def read_credentials_status(
     path: Path, *, expiry_key_path: Sequence[str] = _DEFAULT_EXPIRY_KEY_PATH
 ) -> CredentialsStatus:
+    """Read and parse expiry info from the credentials file at path."""
     now = time.time()
     if not path.exists():
         return CredentialsStatus(path=path, readable=False, expires_at_ms=None, checked_at=now)
@@ -74,6 +81,7 @@ async def watch_loop(
     tool_name: str = "CLI",
     login_command: str = "<tool> login",
 ) -> None:
+    """Background loop: log a warning/error as tool_name's credentials approach or pass expiry."""
     while True:
         status = read_credentials_status(path, expiry_key_path=expiry_key_path)
         if status.readable:

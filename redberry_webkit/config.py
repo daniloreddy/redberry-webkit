@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 
@@ -54,18 +56,22 @@ class ConfigManager:
         return True
 
     def get(self, key: str, default: str = "") -> str:
+        """Return key's value, or default if unset."""
         return self._cache.get(key, default)
 
     def get_bool(self, key: str) -> bool:
+        """Parse key as a boolean ("true"/"1"/"yes", case-insensitive; anything else is False)."""
         return self._cache.get(key, "false").strip().lower() in ("true", "1", "yes")
 
     def get_int(self, key: str, default: int = 0) -> int:
+        """Parse key as an int, or default if unset/unparsable."""
         try:
             return int(self._cache.get(key, str(default)))
         except ValueError:
             return default
 
     def get_float(self, key: str, default: float = 0.0) -> float:
+        """Parse key as a float, or default if unset/unparsable."""
         try:
             return float(self._cache.get(key, str(default)))
         except ValueError:

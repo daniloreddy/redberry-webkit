@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import argparse
 import os
 from pathlib import Path
 
 
 def resolve_env_path() -> Path:
+    """Resolve the .env path: ENV_FILE env var > --env-file CLI flag > nearest .env from cwd."""
     env_file_var = os.environ.get("ENV_FILE")
     if env_file_var:
         return Path(env_file_var)

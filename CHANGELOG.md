@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.3
+
+- Add one-line docstrings to all public API (classes/functions exported by each module) — this is a published pip package consumed by multiple projects, so docstrings are the API contract surface (`help()`, IDE hover), distinct from the app-level "no comments" convention.
+- Uniform `from __future__ import annotations` across all 7 modules (was present in 4/7).
+
 ## v0.1.2
 
 - Add `py.typed` marker (PEP 561) — without it, mypy in consumer projects silently treated every `redberry_webkit` export as `Any`, hiding real type errors (found while migrating `cli_agent_bridge`).

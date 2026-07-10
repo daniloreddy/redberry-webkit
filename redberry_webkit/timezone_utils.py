@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def resolve_timezone(tz_name: str) -> ZoneInfo:
+    """Resolve tz_name to a ZoneInfo, falling back to UTC (with a logged warning) if unknown."""
     try:
         return ZoneInfo(tz_name)
     except ZoneInfoNotFoundError:
