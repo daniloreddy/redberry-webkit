@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import time
 from pathlib import Path
 
-from redberry_webkit.credentials import read_credentials_status, resolve_credentials_path
+import pytest
+
+from redberry_webkit.credentials import read_credentials_status, resolve_credentials_path, watch_loop
 
 
 def _write_credentials(path: Path, refresh_token_expires_at_ms: int) -> None:
@@ -86,3 +90,37 @@ def test_custom_expiry_key_path(tmp_path: Path) -> None:
     status = read_credentials_status(path, expiry_key_path=("oauth", "expiresAt"))
     assert status.readable is True
     assert status.is_near_expiry(7 * 86400) is True
+
+
+async def test_watch_loop_logs_warning_when_near_expiry(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    path = tmp_path / ".credentials.json"
+    _write_credentials(path, int((time.time() + 2 * 86400) * 1000))
+
+    task = asyncio.create_task(
+        watch_loop(path=path, warning_threshold_s=7 * 86400, interval_s=0, tool_name="TestCLI", login_command="x login")
+    )
+    with caplog.at_level(logging.WARNING, logger="redberry_webkit.credentials"):
+        await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert any("TestCLI login expires in" in record.message for record in caplog.records)
+
+
+async def test_watch_loop_logs_error_when_expired(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    path = tmp_path / ".credentials.json"
+    _write_credentials(path, int((time.time() - 3600) * 1000))
+
+    task = asyncio.create_task(
+        watch_loop(path=path, warning_threshold_s=7 * 86400, interval_s=0, tool_name="TestCLI", login_command="x login")
+    )
+    with caplog.at_level(logging.ERROR, logger="redberry_webkit.credentials"):
+        await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert any("TestCLI login expired" in record.message for record in caplog.records)

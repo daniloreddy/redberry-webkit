@@ -27,6 +27,21 @@ def test_get_bool_and_get_int(tmp_path: Path) -> None:
     assert config.get_int("MISSING", 7) == 7
 
 
+def test_get_float(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("RATIO=3.14\n", encoding="utf-8")
+    config = ConfigManager(env_path=env_file)
+    assert config.get_float("RATIO") == 3.14
+    assert config.get_float("MISSING", 1.5) == 1.5
+
+
+def test_get_float_unparsable_returns_default(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("RATIO=not-a-number\n", encoding="utf-8")
+    config = ConfigManager(env_path=env_file)
+    assert config.get_float("RATIO", 9.9) == 9.9
+
+
 def test_get_public_masks_secret_keys(tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text("API_TOKEN=shh\nPUBLIC_VAL=visible\n", encoding="utf-8")
@@ -43,6 +58,15 @@ def test_update_many_writes_back_and_updates_cache(tmp_path: Path) -> None:
     config.update_many({"FOO": "new"})
     assert config.get("FOO") == "new"
     assert "FOO=new" in env_file.read_text(encoding="utf-8")
+
+
+def test_update_many_skips_blank_values(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("FOO=old\n", encoding="utf-8")
+    config = ConfigManager(env_path=env_file)
+    config.update_many({"FOO": "   "})
+    assert config.get("FOO") == "old"
+    assert "FOO=old" in env_file.read_text(encoding="utf-8")
 
 
 def test_reload_if_stale_picks_up_external_edits(tmp_path: Path) -> None:

@@ -27,3 +27,11 @@ def test_falls_back_to_nearest_dotenv(monkeypatch: pytest.MonkeyPatch, tmp_path:
     env_file.write_text("FOO=bar\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     assert resolve_env_path() == env_file
+
+
+def test_falls_back_to_dot_env_when_none_found(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("ENV_FILE", raising=False)
+    monkeypatch.setattr(sys, "argv", ["prog"])
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("dotenv.find_dotenv", lambda usecwd: "")
+    assert resolve_env_path() == Path(".env")
