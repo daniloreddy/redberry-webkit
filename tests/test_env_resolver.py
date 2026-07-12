@@ -29,6 +29,16 @@ def test_falls_back_to_nearest_dotenv(monkeypatch: pytest.MonkeyPatch, tmp_path:
     assert resolve_env_path() == env_file
 
 
+def test_malformed_env_file_flag_does_not_crash(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    # A bare trailing "--env-file" with no value makes argparse raise SystemExit —
+    # resolve_env_path() must swallow that and fall through, not crash the caller.
+    monkeypatch.delenv("ENV_FILE", raising=False)
+    monkeypatch.setattr(sys, "argv", ["prog", "--env-file"])
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("dotenv.find_dotenv", lambda usecwd: "")
+    assert resolve_env_path() == Path(".env")
+
+
 def test_falls_back_to_dot_env_when_none_found(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("ENV_FILE", raising=False)
     monkeypatch.setattr(sys, "argv", ["prog"])

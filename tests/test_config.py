@@ -51,13 +51,39 @@ def test_get_public_masks_secret_keys(tmp_path: Path) -> None:
     assert public["PUBLIC_VAL"] == "visible"
 
 
+def test_get_public_masks_empty_secret_key(tmp_path: Path) -> None:
+    # Masking must not depend on the value being non-empty — an unmasked empty string
+    # would otherwise leak "this secret key isn't configured" to anyone viewing the UI.
+    env_file = tmp_path / ".env"
+    env_file.write_text("PUBLIC_VAL=visible\n", encoding="utf-8")
+    config = ConfigManager(defaults={"API_TOKEN": ""}, secret_keys={"API_TOKEN"}, env_path=env_file)
+    assert config.get_public()["API_TOKEN"] == "***"
+
+
 def test_update_many_writes_back_and_updates_cache(tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text("FOO=old\n", encoding="utf-8")
     config = ConfigManager(env_path=env_file)
     config.update_many({"FOO": "new"})
     assert config.get("FOO") == "new"
-    assert "FOO=new" in env_file.read_text(encoding="utf-8")
+    assert "FOO='new'" in env_file.read_text(encoding="utf-8")
+
+
+def test_update_many_rejects_invalid_key(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("FOO=old\n", encoding="utf-8")
+    config = ConfigManager(env_path=env_file)
+    config.update_many({"in valid key": "x"})
+    assert "in valid key" not in env_file.read_text(encoding="utf-8")
+
+
+def test_update_many_rejects_embedded_newline(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("FOO=old\n", encoding="utf-8")
+    config = ConfigManager(env_path=env_file)
+    config.update_many({"FOO": "x\nBAR=injected"})
+    assert config.get("FOO") == "old"
+    assert "BAR" not in env_file.read_text(encoding="utf-8")
 
 
 def test_update_many_skips_blank_values(tmp_path: Path) -> None:

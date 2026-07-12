@@ -68,7 +68,9 @@ class MetricsStore:
     async def get_stats(self, hours: int = 24) -> dict[str, Any]:
         """Aggregate counts/durations for requests within the last `hours`."""
         since = time.time() - hours * 3600
-        async with aiosqlite.connect(self.db_path) as db:
+        # Same lock as record()/purge_old() — without it, a read interleaved with a
+        # concurrent purge_old() delete can observe a partially-deleted table.
+        async with self._lock, aiosqlite.connect(self.db_path) as db:
             async with db.execute(
                 "SELECT COUNT(*), "
                 "SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END), "
@@ -86,16 +88,22 @@ class MetricsStore:
             "avg_duration_s": avg_duration or 0.0,
         }
 
-    async def get_history(self, limit: int = 100) -> list[MetricsRecord]:
-        """Return the most recent `limit` records, newest first."""
-        async with aiosqlite.connect(self.db_path) as db:
+    async def get_history(self, limit: int = 100, *, redact_sensitive: bool = False) -> list[MetricsRecord]:
+        """Return the most recent `limit` records, newest first.
+
+        `error_message`/`extra` are free-form fields a caller may have populated with
+        sensitive data (URLs, tokens, PII) — pass `redact_sensitive=True` when this feed
+        is exposed to a wider audience than the caller that recorded it (e.g. a
+        dashboard visible to more users than just the recording service).
+        """
+        async with self._lock, aiosqlite.connect(self.db_path) as db:
             async with db.execute(
                 "SELECT timestamp, status, duration_s, error_message, extra "
                 "FROM requests ORDER BY timestamp DESC LIMIT ?",
                 (limit,),
             ) as cursor:
                 rows = await cursor.fetchall()
-        return [
+        records = [
             MetricsRecord(
                 timestamp=row[0],
                 status=row[1],
@@ -105,6 +113,15 @@ class MetricsStore:
             )
             for row in rows
         ]
+        if redact_sensitive:
+            from .logging_utils import redact
+
+            for rec in records:
+                if rec.error_message is not None:
+                    rec.error_message = redact(rec.error_message)
+                if rec.extra is not None:
+                    rec.extra = {k: (redact(v) if isinstance(v, str) else v) for k, v in rec.extra.items()}
+        return records
 
     async def purge_old(self, days: int = 30) -> None:
         """Delete records older than `days` — call periodically to bound DB growth."""
@@ -112,3 +129,10 @@ class MetricsStore:
         async with self._lock, aiosqlite.connect(self.db_path) as db:
             await db.execute("DELETE FROM requests WHERE timestamp < ?", (cutoff,))
             await db.commit()
+            # SQLite reuses freed pages for later inserts on its own, so the file
+            # plateaus rather than growing unbounded — but the deleted pages themselves
+            # are never returned to the OS without this. purge_old() already runs
+            # infrequently (periodic retention sweep), so the full-rebuild cost of
+            # VACUUM here is acceptable; PRAGMA optimize (query-planner stats only)
+            # would not reclaim any space and was the wrong fix.
+            await db.execute("VACUUM")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from dotenv import dotenv_values, set_key
@@ -8,6 +9,8 @@ from dotenv import dotenv_values, set_key
 from .env_resolver import resolve_env_path
 
 logger = logging.getLogger(__name__)
+
+_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class ConfigManager:
@@ -79,13 +82,25 @@ class ConfigManager:
 
     def get_public(self) -> dict[str, str]:
         """Full config with secret values masked — safe to render in a web-UI config page."""
-        return {k: ("***" if k in self._secret_keys and v else v) for k, v in self._cache.items()}
+        return {k: ("***" if k in self._secret_keys else v) for k, v in self._cache.items()}
 
     def update_many(self, updates: dict[str, str]) -> None:
-        """Called by the web-UI save handler — writes straight to .env."""
+        """Called by the web-UI save handler — writes straight to .env.
+
+        Keys must match `_KEY_RE` (standard env-var identifier) and values must not
+        contain newlines/carriage-returns — both are rejected rather than silently
+        written, since an unvalidated key/newline-bearing value handed to `set_key()`
+        can corrupt the file or inject unrelated key=value lines.
+        """
         for key, value in updates.items():
+            if not _KEY_RE.match(key):
+                logger.warning("Config: refusing to write invalid key %r", key)
+                continue
             stripped = value.strip()
             if not stripped:
                 continue
-            set_key(str(self._env_path), key, stripped, quote_mode="never")
+            if "\n" in stripped or "\r" in stripped:
+                logger.warning("Config: refusing to write value with embedded newline for key %r", key)
+                continue
+            set_key(str(self._env_path), key, stripped, quote_mode="always")
             self._cache[key] = stripped

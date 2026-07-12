@@ -21,6 +21,14 @@ def test_redact_secret() -> None:
     assert redact("secret: topsecret123") == "secret: ***"
 
 
+def test_redact_json_quoted_password() -> None:
+    assert redact('{"password": "s3cret"}') == '{"password": "***"}'
+
+
+def test_redact_json_quoted_secret_single_quotes() -> None:
+    assert redact("{'secret': 'topsecret'}") == "{'secret': '***'}"
+
+
 def test_redact_leaves_normal_text_untouched() -> None:
     assert redact("unknown model 'gpt-4' requested, falling back to sonnet") == (
         "unknown model 'gpt-4' requested, falling back to sonnet"

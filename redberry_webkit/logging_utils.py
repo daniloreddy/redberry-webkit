@@ -5,19 +5,34 @@ import re
 
 _REDACTED = "***"
 
-_PATTERNS = [
-    re.compile(r'(?i)(password["\']?\s*[:=]\s*)([^\s,&"\']+)'),
-    re.compile(r'(?i)(api[_-]?token["\']?\s*[:=]\s*)([^\s,&"\']+)'),
-    re.compile(r'(?i)(authorization["\']?\s*[:=]?\s*bearer\s+)([^\s"\']+)'),
-    re.compile(r'(?i)(secret["\']?\s*[:=]\s*)([^\s,&"\']+)'),
-]
+def _kv_pattern(key: str) -> re.Pattern[str]:
+    # Matches both bare and quoted values: `key=value`, `key: "value"`, `key='value'`.
+    # The quoted alternative must come first so the alternation prefers consuming the
+    # surrounding quotes (and therefore the value up to the *matching* quote) instead of
+    # falling through to the bare-value branch, which stops at the first quote character.
+    return re.compile(rf'(?i)({key}["\']?\s*[:=]\s*)(?:"([^"]*)"|\'([^\']*)\'|([^\s,&"\']+))')
+
+
+_PATTERNS = [_kv_pattern("password"), _kv_pattern("api[_-]?token"), _kv_pattern("secret")]
+_BEARER_PATTERN = re.compile(r'(?i)(authorization["\']?\s*[:=]?\s*bearer\s+)([^\s"\']+)')
+
+
+def _quote_preserving_sub(match: re.Match[str]) -> str:
+    # Re-wrap the redaction marker in whichever quote style (or none) the value used,
+    # so redacted JSON/log lines stay syntactically valid instead of dropping quotes.
+    if match.group(2) is not None:
+        return f'{match.group(1)}"{_REDACTED}"'
+    if match.group(3) is not None:
+        return f"{match.group(1)}'{_REDACTED}'"
+    return f"{match.group(1)}{_REDACTED}"
 
 
 def redact(text: str) -> str:
-    """Replace password/token/secret/bearer values in text with a redaction marker."""
+    """Replace password/token/secret/bearer values (bare or quoted) in text with a redaction marker."""
     redacted = text
     for pattern in _PATTERNS:
-        redacted = pattern.sub(lambda m: f"{m.group(1)}{_REDACTED}", redacted)
+        redacted = pattern.sub(_quote_preserving_sub, redacted)
+    redacted = _BEARER_PATTERN.sub(lambda m: f"{m.group(1)}{_REDACTED}", redacted)
     return redacted
 
 

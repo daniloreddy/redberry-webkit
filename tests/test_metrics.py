@@ -88,6 +88,23 @@ async def test_get_stats_empty_db_returns_zeros(tmp_path: Path) -> None:
     assert stats == {"total_requests": 0, "ok_requests": 0, "error_requests": 0, "avg_duration_s": 0.0}
 
 
+async def test_get_history_redacts_sensitive_fields_when_requested(tmp_path: Path) -> None:
+    store = MetricsStore(db_path=tmp_path / "metrics.db")
+    await store.init_db()
+    await store.record(
+        MetricsRecord(
+            timestamp=time.time(),
+            status="error",
+            duration_s=0.5,
+            error_message="auth failed password=hunter2",
+            extra={"token": "api_token=sk-abc123", "count": 3},
+        )
+    )
+    history = await store.get_history(redact_sensitive=True)
+    assert history[0].error_message == "auth failed password=***"
+    assert history[0].extra == {"token": "api_token=***", "count": 3}
+
+
 async def test_purge_old_removes_stale_records(tmp_path: Path) -> None:
     store = MetricsStore(db_path=tmp_path / "metrics.db")
     await store.init_db()

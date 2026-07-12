@@ -50,8 +50,13 @@ class CredentialsStatus:
 def resolve_credentials_path(
     config_dir: str = "", *, default_dir_name: str = ".claude", filename: str = ".credentials.json"
 ) -> Path:
-    """Resolve the on-disk path to a CLI tool's credentials file (default: ~/.claude/.credentials.json)."""
-    base = Path(config_dir) if config_dir.strip() else Path.home() / default_dir_name
+    """Resolve the on-disk path to a CLI tool's credentials file (default: ~/.claude/.credentials.json).
+
+    `config_dir` must come from trusted config (env var, CLI flag), never directly from
+    untrusted request input — it is not sandboxed to any base directory, so an attacker-
+    controlled value (e.g. `../../etc`) resolves outside the intended config directory.
+    """
+    base = Path(config_dir).resolve() if config_dir.strip() else Path.home() / default_dir_name
     return base / filename
 
 
@@ -60,15 +65,24 @@ def read_credentials_status(
 ) -> CredentialsStatus:
     """Read and parse expiry info from the credentials file at path."""
     now = time.time()
-    if not path.exists():
+    try:
+        # Read directly instead of checking .exists() first — an exists()-then-read_text()
+        # pair is a TOCTOU window where the file can vanish or be swapped in between.
+        raw = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return CredentialsStatus(path=path, readable=False, expires_at_ms=None, checked_at=now)
+    except OSError as exc:
+        logger.warning("credentials file at %s unreadable: %s", path, type(exc).__name__)
         return CredentialsStatus(path=path, readable=False, expires_at_ms=None, checked_at=now)
     try:
-        value: Any = json.loads(path.read_text(encoding="utf-8"))
+        value: Any = json.loads(raw)
         for key in expiry_key_path:
             value = value[key]
         return CredentialsStatus(path=path, readable=True, expires_at_ms=int(value), checked_at=now)
-    except (OSError, ValueError, KeyError, TypeError) as exc:
-        logger.warning("credentials file at %s unreadable or malformed: %s", path, exc)
+    except (ValueError, KeyError, TypeError) as exc:
+        # Log the exception type only, not its message — a JSON/KeyError message can
+        # echo back fragments of the file content, which may itself be sensitive.
+        logger.warning("credentials file at %s malformed: %s", path, type(exc).__name__)
         return CredentialsStatus(path=path, readable=False, expires_at_ms=None, checked_at=now)
 
 

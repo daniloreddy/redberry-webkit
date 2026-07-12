@@ -147,6 +147,26 @@ def test_purge_expired_blocks_leaves_active_blocks_untouched(auth: AuthManager) 
     assert auth.is_ip_blocked(ip) is True
 
 
+def test_legacy_hash_without_stored_kdf_params_still_verifies(tmp_path: Path) -> None:
+    # Simulates a password set before scrypt_n/r/p were persisted (module <=0.1.4,
+    # hashed at N=16384). Must still verify under the module's current, higher _SCRYPT_N.
+    import hashlib
+
+    from redberry_webkit.auth import _LEGACY_SCRYPT_N, _LEGACY_SCRYPT_P, _LEGACY_SCRYPT_R
+
+    auth_file = tmp_path / "auth.json"
+    salt = b"0" * 16
+    digest = hashlib.scrypt(
+        b"old-password", salt=salt, n=_LEGACY_SCRYPT_N, r=_LEGACY_SCRYPT_R, p=_LEGACY_SCRYPT_P, dklen=32
+    )
+    auth_file.write_text(
+        json.dumps({"password_hash": digest.hex(), "salt": salt.hex(), "secret": "s"}), encoding="utf-8"
+    )
+    auth = AuthManager(auth_file=auth_file, cookie_name="s", token_ttl=3600)
+    assert auth.verify_password("old-password") is True
+    assert auth.verify_password("wrong") is False
+
+
 def test_load_existing_file_missing_ui_storage_secret_gets_migrated(tmp_path: Path) -> None:
     auth_file = tmp_path / "auth.json"
     auth_file.write_text(json.dumps({"password_hash": None, "salt": None, "secret": "s"}), encoding="utf-8")

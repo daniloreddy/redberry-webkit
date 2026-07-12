@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import secrets
+import stat
 import time
 from collections import deque
 from collections.abc import Mapping
@@ -17,10 +18,26 @@ import jwt
 
 logger = logging.getLogger(__name__)
 
-_SCRYPT_N = 16384
+# OWASP 2023 minimum for interactive login (2^17). Existing installs keep whatever N
+# they were hashed with — see set_password()/verify_password(), which persist the KDF
+# params used at hash time instead of assuming the current module constant, so bumping
+# this value never invalidates passwords set under an older version.
+_SCRYPT_N = 131072
 _SCRYPT_R = 8
 _SCRYPT_P = 1
 _SCRYPT_DKLEN = 32
+
+# Params used by every hash written before scrypt_n/r/p started being persisted
+# (module versions <=0.1.4, N=16384). A hash with no stored params must be verified
+# against these, not the current _SCRYPT_N above, or every pre-existing password breaks.
+_LEGACY_SCRYPT_N = 16384
+_LEGACY_SCRYPT_R = 8
+_LEGACY_SCRYPT_P = 1
+
+# hashlib.scrypt's OpenSSL backend defaults maxmem to 32MB, well under what N=131072,
+# r=8 needs (128*N*r*p bytes ≈ 128MB) — without raising it, hashing raises ValueError:
+# "memory limit exceeded". Sized generously above the largest params this module uses.
+_SCRYPT_MAXMEM = 256 * 1024 * 1024
 
 _FAILED_ATTEMPTS_LIMIT = 5
 _FAILED_ATTEMPTS_WINDOW_S = 300
@@ -42,25 +59,37 @@ class AuthManager:
         self._global_attempts: deque[float] = deque()
 
     def _load_or_init(self) -> dict[str, Any]:
-        if self.auth_file.exists():
-            loaded: dict[str, Any] = json.loads(self.auth_file.read_text(encoding="utf-8"))
-            if "ui_storage_secret" not in loaded:
-                loaded["ui_storage_secret"] = secrets.token_hex(16)
-                self._save(loaded)
-            return loaded
-        data: dict[str, Any] = {
-            "password_hash": None,
-            "salt": None,
-            "secret": secrets.token_hex(32),
-            "ui_storage_secret": secrets.token_hex(16),
-        }
-        self._save(data)
-        logger.warning("no password configured yet; run scripts/set_password.py before logging in")
-        return data
+        try:
+            raw = self.auth_file.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            data: dict[str, Any] = {
+                "password_hash": None,
+                "salt": None,
+                "secret": secrets.token_hex(32),
+                "ui_storage_secret": secrets.token_hex(16),
+            }
+            self._save(data)
+            logger.warning("no password configured yet; run scripts/set_password.py before logging in")
+            return data
+        loaded: dict[str, Any] = json.loads(raw)
+        if "ui_storage_secret" not in loaded:
+            loaded["ui_storage_secret"] = secrets.token_hex(16)
+            self._save(loaded)
+        return loaded
 
     def _save(self, data: dict[str, Any]) -> None:
+        # Write to a sibling temp file then atomically rename over the target — a crash
+        # mid-write can never leave auth.json truncated/unparsable. The secret (used to
+        # sign every session JWT) lives in this file, so a corrupted read would silently
+        # invalidate all active sessions.
         self.auth_file.parent.mkdir(parents=True, exist_ok=True)
-        self.auth_file.write_text(json.dumps(data), encoding="utf-8")
+        tmp_path = self.auth_file.with_suffix(f"{self.auth_file.suffix}.tmp")
+        tmp_path.write_text(json.dumps(data), encoding="utf-8")
+        os.replace(tmp_path, self.auth_file)
+        try:
+            os.chmod(self.auth_file, stat.S_IRUSR | stat.S_IWUSR)  # owner read/write only
+        except OSError:
+            pass  # best-effort — e.g. unsupported on this filesystem/OS (Windows)
 
     @property
     def ui_storage_secret(self) -> str:
@@ -76,10 +105,22 @@ class AuthManager:
         """Hash and persist password, overwriting any previous credential."""
         salt = secrets.token_bytes(16)
         digest = hashlib.scrypt(
-            password.encode("utf-8"), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P, dklen=_SCRYPT_DKLEN
+            password.encode("utf-8"),
+            salt=salt,
+            n=_SCRYPT_N,
+            r=_SCRYPT_R,
+            p=_SCRYPT_P,
+            dklen=_SCRYPT_DKLEN,
+            maxmem=_SCRYPT_MAXMEM,
         )
         self._data["salt"] = salt.hex()
         self._data["password_hash"] = digest.hex()
+        # Persist the KDF params used at hash time, not just the hash — lets a future
+        # bump of the module-level _SCRYPT_N constant tighten cost for new passwords
+        # without invalidating (or silently under-verifying) hashes set under an older N.
+        self._data["scrypt_n"] = _SCRYPT_N
+        self._data["scrypt_r"] = _SCRYPT_R
+        self._data["scrypt_p"] = _SCRYPT_P
         self._save(self._data)
 
     def verify_password(self, password: str) -> bool:
@@ -89,15 +130,18 @@ class AuthManager:
         if not salt_hex or not hash_hex:
             return False
         salt = bytes.fromhex(salt_hex)
+        n = self._data.get("scrypt_n", _LEGACY_SCRYPT_N)
+        r = self._data.get("scrypt_r", _LEGACY_SCRYPT_R)
+        p = self._data.get("scrypt_p", _LEGACY_SCRYPT_P)
         digest = hashlib.scrypt(
-            password.encode("utf-8"), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P, dklen=_SCRYPT_DKLEN
+            password.encode("utf-8"), salt=salt, n=n, r=r, p=p, dklen=_SCRYPT_DKLEN, maxmem=_SCRYPT_MAXMEM
         )
         return hmac.compare_digest(digest, bytes.fromhex(hash_hex))
 
     def create_token(self) -> str:
         """Issue a JWT session token valid for token_ttl seconds."""
         payload = {"exp": int(time.time()) + self.token_ttl}
-        return jwt.encode(payload, self._data["secret"], algorithm="HS256")
+        return jwt.encode(payload, self._data["secret"], algorithm="HS256", headers={"typ": "JWT"})
 
     def verify_token(self, token: str) -> bool:
         """True if token is a valid, unexpired session JWT."""
@@ -149,7 +193,10 @@ def verify_api_token(authorization_header: str, valid_tokens: set[str]) -> bool:
     if not authorization_header.startswith("Bearer "):
         return False
     presented = authorization_header.removeprefix("Bearer ").strip()
-    return any(hmac.compare_digest(presented, token) for token in valid_tokens)
+    # Compare against every token rather than short-circuiting on the first match —
+    # any()'s early exit leaks which position in valid_tokens matched via timing,
+    # in principle allowing a binary search of a large token set.
+    return sum(hmac.compare_digest(presented, token) for token in valid_tokens) > 0
 
 
 def is_secure_context(headers: Mapping[str, str]) -> bool:
