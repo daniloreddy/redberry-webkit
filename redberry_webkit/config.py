@@ -87,10 +87,18 @@ class ConfigManager:
     def update_many(self, updates: dict[str, str]) -> None:
         """Called by the web-UI save handler — writes straight to .env.
 
-        Keys must match `_KEY_RE` (standard env-var identifier) and values must not
-        contain newlines/carriage-returns — both are rejected rather than silently
-        written, since an unvalidated key/newline-bearing value handed to `set_key()`
-        can corrupt the file or inject unrelated key=value lines.
+        Keys must match `_KEY_RE` (standard env-var identifier); an invalid key is
+        rejected rather than silently written. Values are always written via
+        `set_key(..., quote_mode="always")`: python-dotenv's writer quotes the value
+        and backslash-escapes any embedded quote character, which is what actually
+        closes the env-injection path (a value containing `\\n` planting an
+        unrelated `KEY=value` line) — quoting neutralizes it regardless of content,
+        so there is no need to additionally reject embedded newlines/carriage
+        returns. That earlier blanket rejection (v0.2.0) was overly cautious and
+        broke a legitimate use case: a multi-line value (e.g. a customizable
+        message template) written from a web-UI textarea. A value's own embedded
+        newlines are preserved inside the quoted block and round-trip correctly via
+        `dotenv_values()`/`ConfigManager.get()` on the next load.
         """
         for key, value in updates.items():
             if not _KEY_RE.match(key):
@@ -98,9 +106,6 @@ class ConfigManager:
                 continue
             stripped = value.strip()
             if not stripped:
-                continue
-            if "\n" in stripped or "\r" in stripped:
-                logger.warning("Config: refusing to write value with embedded newline for key %r", key)
                 continue
             set_key(str(self._env_path), key, stripped, quote_mode="always")
             self._cache[key] = stripped

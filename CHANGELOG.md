@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.2.1
+
+- **config.py**: `update_many()` no longer rejects values with embedded newlines/carriage
+  returns. The v0.2.0 fix closed an env-injection path (a value containing `\n` planting an
+  unrelated `KEY=value` line) by rejecting such values outright — but that also broke a
+  legitimate use case surfaced by a consumer project (PRO-form): a multi-line value written
+  from a web-UI textarea (e.g. a customizable message template). `quote_mode="always"`
+  (already in place since v0.2.0) turns out to be sufficient on its own: python-dotenv's
+  `set_key()` quotes the value and backslash-escapes any embedded quote character, which
+  closes the injection path regardless of content — a value's embedded newlines stay inside
+  the quoted block and round-trip correctly through `dotenv_values()`. Verified empirically
+  (see `tests/test_config.py::test_update_many_embedded_newline_cannot_inject_a_new_key`)
+  before relaxing the check, not just by reasoning about it. `docker compose`'s own `.env`
+  parser (compose-go, a joho/godotenv-compatible implementation) also supports multi-line
+  quoted values — a **manually hand-edited** `.env` with an *unquoted* multi-line value still
+  breaks `docker compose up` (the two parsers don't share this codepath), but anything written
+  through `ConfigManager.update_many()` is always quoted, so this class of consumer never hits
+  that failure mode via the UI.
+
 ## v0.2.0
 
 Fixes from a security/quality audit (REPORT.md, 23 findings). ~17 fixed below; L5 (in-memory

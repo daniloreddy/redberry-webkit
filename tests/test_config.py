@@ -77,13 +77,31 @@ def test_update_many_rejects_invalid_key(tmp_path: Path) -> None:
     assert "in valid key" not in env_file.read_text(encoding="utf-8")
 
 
-def test_update_many_rejects_embedded_newline(tmp_path: Path) -> None:
+def test_update_many_preserves_embedded_newline_via_quoting(tmp_path: Path) -> None:
+    # A multi-line value (e.g. a web-UI textarea) must round-trip intact — quoting
+    # (not rejection) is what makes this safe against env-injection, see below.
+    env_file = tmp_path / ".env"
+    env_file.write_text("FOO=old\n", encoding="utf-8")
+    config = ConfigManager(env_path=env_file)
+    config.update_many({"FOO": "line1\nline2"})
+    assert config.get("FOO") == "line1\nline2"
+
+    reloaded = ConfigManager(env_path=env_file)
+    assert reloaded.get("FOO") == "line1\nline2"
+
+
+def test_update_many_embedded_newline_cannot_inject_a_new_key(tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text("FOO=old\n", encoding="utf-8")
     config = ConfigManager(env_path=env_file)
     config.update_many({"FOO": "x\nBAR=injected"})
-    assert config.get("FOO") == "old"
-    assert "BAR" not in env_file.read_text(encoding="utf-8")
+
+    assert config.get("FOO") == "x\nBAR=injected"
+    assert config.get("BAR") == ""
+
+    reloaded = ConfigManager(env_path=env_file)
+    assert reloaded.get("FOO") == "x\nBAR=injected"
+    assert reloaded.get("BAR") == ""
 
 
 def test_update_many_skips_blank_values(tmp_path: Path) -> None:
