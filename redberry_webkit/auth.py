@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import itertools
 import json
 import logging
 import os
 import secrets
 import stat
+import threading
 import time
 from collections import deque
 from collections.abc import Mapping
@@ -53,6 +55,8 @@ class AuthManager:
         self.auth_file = auth_file
         self.cookie_name = cookie_name
         self.token_ttl = token_ttl
+        self._save_lock = threading.Lock()
+        self._tmp_counter = itertools.count()
         self._data: dict[str, Any] = self._load_or_init()
         self._failed_attempts: dict[str, list[float]] = {}
         self._blocked_until: dict[str, float] = {}
@@ -81,11 +85,14 @@ class AuthManager:
         # Write to a sibling temp file then atomically rename over the target — a crash
         # mid-write can never leave auth.json truncated/unparsable. The secret (used to
         # sign every session JWT) lives in this file, so a corrupted read would silently
-        # invalidate all active sessions.
+        # invalidate all active sessions. The temp file uses a per-call unique suffix
+        # (pid + monotonic counter) rather than a static ".tmp" name, so two concurrent
+        # _save calls can never clobber each other's temp file before the rename.
         self.auth_file.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = self.auth_file.with_suffix(f"{self.auth_file.suffix}.tmp")
-        tmp_path.write_text(json.dumps(data), encoding="utf-8")
-        os.replace(tmp_path, self.auth_file)
+        with self._save_lock:
+            tmp_path = self.auth_file.with_suffix(f".{os.getpid()}.{next(self._tmp_counter)}.tmp")
+            tmp_path.write_text(json.dumps(data), encoding="utf-8")
+            os.replace(tmp_path, self.auth_file)
         try:
             os.chmod(self.auth_file, stat.S_IRUSR | stat.S_IWUSR)  # owner read/write only
         except OSError:

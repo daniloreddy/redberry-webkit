@@ -10,7 +10,7 @@ def _kv_pattern(key: str) -> re.Pattern[str]:
     # The quoted alternative must come first so the alternation prefers consuming the
     # surrounding quotes (and therefore the value up to the *matching* quote) instead of
     # falling through to the bare-value branch, which stops at the first quote character.
-    return re.compile(rf'(?i)({key}["\']?\s*[:=]\s*)(?:"([^"]*)"|\'([^\']*)\'|([^\s,&"\']+))')
+    return re.compile(rf'(?i)(\b{key}["\']?\s*[:=]\s*)(?:"([^"]*)"|\'([^\']*)\'|([^\s,&"\']+))')
 
 
 _PATTERNS = [_kv_pattern("password"), _kv_pattern("api[_-]?token"), _kv_pattern("secret")]

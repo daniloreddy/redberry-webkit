@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 from pathlib import Path
 
 from dotenv import dotenv_values, set_key
@@ -35,6 +36,7 @@ class ConfigManager:
         self._env_path: Path = env_path or resolve_env_path()
         self._last_mtime: float = 0.0
         self._cache: dict[str, str] = {}
+        self._write_lock = threading.Lock()
         logger.info("Config: using .env=%s", self._env_path)
         self._load()
 
@@ -100,12 +102,18 @@ class ConfigManager:
         newlines are preserved inside the quoted block and round-trip correctly via
         `dotenv_values()`/`ConfigManager.get()` on the next load.
         """
-        for key, value in updates.items():
-            if not _KEY_RE.match(key):
-                logger.warning("Config: refusing to write invalid key %r", key)
-                continue
-            stripped = value.strip()
-            if not stripped:
-                continue
-            set_key(str(self._env_path), key, stripped, quote_mode="always")
-            self._cache[key] = stripped
+        # An empty/whitespace-only value is skipped rather than written, so update_many
+        # can never clear a previously-set key from the web-UI — deliberate: a save
+        # accidentally submitted with a blank field must not silently wipe existing
+        # config. Clearing a key is an explicit, separate operation (edit .env directly),
+        # not a side effect of a form save.
+        with self._write_lock:
+            for key, value in updates.items():
+                if not _KEY_RE.match(key):
+                    logger.warning("Config: refusing to write invalid key %r", key)
+                    continue
+                stripped = value.strip()
+                if not stripped:
+                    continue
+                set_key(str(self._env_path), key, stripped, quote_mode="always")
+                self._cache[key] = stripped
