@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.2.3
+
+- **credentials.py**: `_DEFAULT_EXPIRY_KEY_PATH` updated from `("claudeAiOauth",
+  "refreshTokenExpiresAt")` to `("claudeAiOauth", "expiresAt")` — the Claude Code CLI
+  renamed this field in a newer version; the old default made `read_credentials_status()`
+  raise `KeyError` on every check against a current `.credentials.json`, silently falling
+  back to `readable=False` (fail-open, so requests were never blocked, but the expiry
+  warning/error logging was permanently inert). Confirmed against a real production
+  credentials file. Consumers passing a custom `expiry_key_path` are unaffected.
+
 ## v0.2.1
 
 - **config.py**: `update_many()` no longer rejects values with embedded newlines/carriage

@@ -16,7 +16,10 @@ _SECONDS_PER_DAY = 86400
 # Default matches Claude Code CLI's ~/.claude/.credentials.json shape — the original
 # use case this module was extracted from. Any other CLI tool with a JSON credentials
 # file and a millisecond-epoch expiry field passes its own expiry_key_path/filename.
-_DEFAULT_EXPIRY_KEY_PATH: tuple[str, ...] = ("claudeAiOauth", "refreshTokenExpiresAt")
+# "expiresAt" confirmed against a real production .credentials.json (2026-07); older
+# CLI versions used "refreshTokenExpiresAt" under the same claudeAiOauth object — the
+# field was renamed, not added, so there's no dual-key fallback here, just the update.
+_DEFAULT_EXPIRY_KEY_PATH: tuple[str, ...] = ("claudeAiOauth", "expiresAt")
 
 
 @dataclass(frozen=True)

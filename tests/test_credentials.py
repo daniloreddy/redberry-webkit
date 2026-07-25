@@ -11,9 +11,9 @@ import pytest
 from redberry_webkit.credentials import read_credentials_status, resolve_credentials_path, watch_loop
 
 
-def _write_credentials(path: Path, refresh_token_expires_at_ms: int) -> None:
+def _write_credentials(path: Path, expires_at_ms: int) -> None:
     path.write_text(
-        json.dumps({"claudeAiOauth": {"refreshTokenExpiresAt": refresh_token_expires_at_ms}}),
+        json.dumps({"claudeAiOauth": {"expiresAt": expires_at_ms}}),
         encoding="utf-8",
     )
 
