@@ -104,6 +104,27 @@ def test_update_many_embedded_newline_cannot_inject_a_new_key(tmp_path: Path) ->
     assert reloaded.get("BAR") == ""
 
 
+def test_update_many_rejects_value_ending_in_backslash(tmp_path: Path) -> None:
+    # Confirmed against python-dotenv directly: set_key(..., quote_mode="always") writes
+    # KEY='...\' without complaint, but python-dotenv's own dotenv_values() then fails to
+    # parse that line (trailing backslash reads as escaping the closing quote) and
+    # silently returns an EMPTY dict for the whole file — a save ending in `\` would
+    # otherwise wipe every other key's value on the next reload, not just this one.
+    env_file = tmp_path / ".env"
+    env_file.write_text("FOO=old\nBAR=other\n", encoding="utf-8")
+    config = ConfigManager(env_path=env_file)
+    config.update_many({"FOO": "value-ending-in-backslash\\"})
+
+    assert config.get("FOO") == "old"
+    raw = env_file.read_text(encoding="utf-8")
+    assert "backslash" not in raw
+    assert "BAR" in raw
+
+    reloaded = ConfigManager(env_path=env_file)
+    assert reloaded.get("FOO") == "old"
+    assert reloaded.get("BAR") == "other"
+
+
 def test_update_many_skips_blank_values(tmp_path: Path) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text("FOO=old\n", encoding="utf-8")

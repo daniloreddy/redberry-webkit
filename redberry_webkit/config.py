@@ -90,17 +90,17 @@ class ConfigManager:
         """Called by the web-UI save handler — writes straight to .env.
 
         Keys must match `_KEY_RE` (standard env-var identifier); an invalid key is
-        rejected rather than silently written. Values are always written via
+        rejected rather than silently written. Values are written via
         `set_key(..., quote_mode="always")`: python-dotenv's writer quotes the value
-        and backslash-escapes any embedded quote character, which is what actually
-        closes the env-injection path (a value containing `\\n` planting an
-        unrelated `KEY=value` line) — quoting neutralizes it regardless of content,
-        so there is no need to additionally reject embedded newlines/carriage
-        returns. That earlier blanket rejection (v0.2.0) was overly cautious and
-        broke a legitimate use case: a multi-line value (e.g. a customizable
-        message template) written from a web-UI textarea. A value's own embedded
-        newlines are preserved inside the quoted block and round-trip correctly via
-        `dotenv_values()`/`ConfigManager.get()` on the next load.
+        and backslash-escapes any embedded quote character, which closes the
+        env-injection path (a value containing `\\n` planting an unrelated
+        `KEY=value` line) for content in the *middle* of a value — quoting
+        neutralizes that regardless of content, so there is no need to additionally
+        reject embedded newlines/carriage returns. A value's own embedded newlines
+        are preserved inside the quoted block and round-trip correctly via
+        `dotenv_values()`/`ConfigManager.get()` on the next load. A value ending in
+        a backslash is the one shape quoting does NOT neutralize (see below) and is
+        rejected outright rather than written.
         """
         # An empty/whitespace-only value is skipped rather than written, so update_many
         # can never clear a previously-set key from the web-UI — deliberate: a save
@@ -114,6 +114,17 @@ class ConfigManager:
                     continue
                 stripped = value.strip()
                 if not stripped:
+                    continue
+                if stripped.endswith("\\"):
+                    # Confirmed against python-dotenv directly: set_key(..., quote_mode=
+                    # "always") happily writes `KEY='...ends-in-backslash\'` — but
+                    # python-dotenv's OWN reader then can't parse that line back (the
+                    # trailing backslash reads as escaping the closing quote), and
+                    # dotenv_values() silently returns an empty dict for the WHOLE file,
+                    # not just this key. A single web-UI save ending in `\` would zero
+                    # out every config value on the next reload. Reject before writing —
+                    # same treatment as an invalid key above — rather than corrupt .env.
+                    logger.warning("Config: refusing to write value for %r ending in a backslash", key)
                     continue
                 set_key(str(self._env_path), key, stripped, quote_mode="always")
                 self._cache[key] = stripped

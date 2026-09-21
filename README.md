@@ -69,3 +69,7 @@ scripts/checks.sh    # Linux/Mac
 ```
 
 Crea/attiva il venv, installa `requirements.dev.txt`, esegue `ruff check .`, `mypy redberry_webkit`, `pytest`.
+
+## Licenza
+
+MIT — vedi [LICENSE](LICENSE).

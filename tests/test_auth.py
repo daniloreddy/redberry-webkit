@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -24,6 +25,18 @@ def test_set_and_verify_password(auth: AuthManager) -> None:
     assert auth.has_password() is True
     assert auth.verify_password("s3cr3t") is True
     assert auth.verify_password("wrong") is False
+
+
+def test_set_password_rotates_jwt_secret_and_invalidates_existing_sessions(auth: AuthManager) -> None:
+    auth.set_password("first-password")
+    token = auth.create_token()
+    assert auth.verify_token(token) is True
+
+    # Changing the password (e.g. after a suspected stolen session cookie) must
+    # invalidate every token issued under the old secret, not just future logins.
+    auth.set_password("second-password")
+    assert auth.verify_token(token) is False
+    assert auth.verify_token(auth.create_token()) is True
 
 
 def test_password_persisted_across_instances(tmp_path: Path) -> None:
@@ -119,6 +132,12 @@ def test_verify_api_token_empty_header() -> None:
     assert verify_api_token("", {"abc123"}) is False
 
 
+def test_verify_api_token_non_ascii_presented_token_rejects_without_raising() -> None:
+    # hmac.compare_digest raises TypeError on non-ASCII str operands — must be treated
+    # as a no-match (False), never let a malformed/malicious header 500 the caller.
+    assert verify_api_token("Bearer café", {"abc123"}) is False
+
+
 def test_ip_never_attempted_is_not_blocked(auth: AuthManager) -> None:
     assert auth.is_ip_blocked("never-seen") is False
 
@@ -147,6 +166,27 @@ def test_purge_expired_blocks_leaves_active_blocks_untouched(auth: AuthManager) 
     assert auth.is_ip_blocked(ip) is True
 
 
+def test_purge_expired_blocks_drops_stale_sub_threshold_attempts(auth: AuthManager) -> None:
+    # An IP with fewer than _FAILED_ATTEMPTS_LIMIT failures never enters _blocked_until,
+    # so it was previously never purged from _failed_attempts — unbounded growth, one
+    # entry per distinct IP that ever failed a login once, however long ago.
+    ip = "1.2.3.4"
+    auth.record_attempt(ip, success=False)
+    auth.record_attempt(ip, success=False)
+    assert ip in auth._failed_attempts
+
+    auth._failed_attempts[ip] = [time.time() - 301] * 2  # force outside the attempt window
+    auth.purge_expired_blocks()
+    assert ip not in auth._failed_attempts
+
+
+def test_purge_expired_blocks_keeps_fresh_sub_threshold_attempts(auth: AuthManager) -> None:
+    ip = "1.2.3.4"
+    auth.record_attempt(ip, success=False)
+    auth.purge_expired_blocks()
+    assert ip in auth._failed_attempts
+
+
 def test_legacy_hash_without_stored_kdf_params_still_verifies(tmp_path: Path) -> None:
     # Simulates a password set before scrypt_n/r/p were persisted (module <=0.1.4,
     # hashed at N=16384). Must still verify under the module's current, higher _SCRYPT_N.
@@ -165,6 +205,40 @@ def test_legacy_hash_without_stored_kdf_params_still_verifies(tmp_path: Path) ->
     auth = AuthManager(auth_file=auth_file, cookie_name="s", token_ttl=3600)
     assert auth.verify_password("old-password") is True
     assert auth.verify_password("wrong") is False
+
+
+def test_save_chmods_temp_file_before_rename(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Verifies call ORDER (chmod before replace), not actual POSIX permission bits — dev
+    # runs happen on Windows, where chmod is a no-op either way. os.replace() preserves the
+    # source file's mode on POSIX, so chmod-ing the temp file before the rename means
+    # auth_file (holding the JWT secret) never passes through an umask-determined mode.
+    import os as os_module
+
+    calls: list[str] = []
+    real_chmod = os_module.chmod
+    real_replace = os_module.replace
+
+    def _tracking_chmod(path: Any, mode: int) -> None:
+        calls.append(f"chmod:{Path(str(path)).name}")
+        real_chmod(path, mode)
+
+    def _tracking_replace(src: Any, dst: Any) -> None:
+        calls.append(f"replace:{Path(str(src)).name}")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os_module, "chmod", _tracking_chmod)
+    monkeypatch.setattr(os_module, "replace", _tracking_replace)
+
+    auth = AuthManager(auth_file=tmp_path / "auth.json", cookie_name="s", token_ttl=3600)
+    calls.clear()
+    auth.set_password("x")
+
+    chmod_calls = [c for c in calls if c.startswith("chmod:")]
+    replace_calls = [c for c in calls if c.startswith("replace:")]
+    assert len(chmod_calls) == 1
+    assert len(replace_calls) == 1
+    assert calls.index(chmod_calls[0]) < calls.index(replace_calls[0])
+    assert "auth.json" not in chmod_calls[0]  # must target the temp file, not the final path
 
 
 def test_load_existing_file_missing_ui_storage_secret_gets_migrated(tmp_path: Path) -> None:

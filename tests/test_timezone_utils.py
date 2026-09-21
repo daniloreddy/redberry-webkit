@@ -15,3 +15,14 @@ def test_resolve_timezone_valid_iana_name() -> None:
 
 def test_resolve_timezone_invalid_falls_back_to_utc() -> None:
     assert resolve_timezone("Not/AZone") == ZoneInfo("UTC")
+
+
+def test_resolve_timezone_empty_string_falls_back_to_utc() -> None:
+    # ZoneInfo("") raises ValueError, not ZoneInfoNotFoundError — a TZ="" in .env must
+    # not crash the app at import time (app/ui/pages.py.jinja's module-level DISPLAY_TZ).
+    assert resolve_timezone("") == ZoneInfo("UTC")
+
+
+def test_resolve_timezone_path_like_value_falls_back_to_utc() -> None:
+    # Also raises ValueError, not ZoneInfoNotFoundError.
+    assert resolve_timezone("../../etc/passwd") == ZoneInfo("UTC")

@@ -92,11 +92,18 @@ class AuthManager:
         with self._save_lock:
             tmp_path = self.auth_file.with_suffix(f".{os.getpid()}.{next(self._tmp_counter)}.tmp")
             tmp_path.write_text(json.dumps(data), encoding="utf-8")
+            # chmod the temp file BEFORE the rename, not the final path after — os.replace()
+            # preserves the source file's mode on POSIX, so auth_file never passes through
+            # an umask-determined mode (often world/group-readable) between the rename and
+            # a later chmod call. Best-effort: unsupported on Windows (no-op there either
+            # way), and a symlink-following chmod on a just-created temp file has no
+            # meaningful race to defend against (nothing else can be pointed at this path
+            # yet, it was just created with a unique per-call name).
+            try:
+                os.chmod(tmp_path, stat.S_IRUSR | stat.S_IWUSR)  # owner read/write only
+            except OSError:
+                pass  # best-effort — e.g. unsupported on this filesystem/OS (Windows)
             os.replace(tmp_path, self.auth_file)
-        try:
-            os.chmod(self.auth_file, stat.S_IRUSR | stat.S_IWUSR)  # owner read/write only
-        except OSError:
-            pass  # best-effort — e.g. unsupported on this filesystem/OS (Windows)
 
     @property
     def ui_storage_secret(self) -> str:
@@ -109,7 +116,15 @@ class AuthManager:
         return bool(self._data.get("password_hash"))
 
     def set_password(self, password: str) -> None:
-        """Hash and persist password, overwriting any previous credential."""
+        """Hash and persist password, overwriting any previous credential.
+
+        Also rotates the JWT signing secret, which invalidates every session token
+        issued so far — including one held by an attacker who stole a session cookie.
+        Without this, changing the password after a suspected compromise would leave
+        any already-issued token (legitimate or stolen) valid until its own expiry,
+        defeating the point of the password change. The one side effect: the browser
+        that just changed the password also needs to log in again.
+        """
         salt = secrets.token_bytes(16)
         digest = hashlib.scrypt(
             password.encode("utf-8"),
@@ -128,6 +143,7 @@ class AuthManager:
         self._data["scrypt_n"] = _SCRYPT_N
         self._data["scrypt_r"] = _SCRYPT_R
         self._data["scrypt_p"] = _SCRYPT_P
+        self._data["secret"] = secrets.token_hex(32)
         self._save(self._data)
 
     def verify_password(self, password: str) -> bool:
@@ -189,10 +205,23 @@ class AuthManager:
     def purge_expired_blocks(self) -> None:
         """Drop IP blocks and failed-attempt history past expiry — call periodically."""
         now = time.time()
-        expired = [ip for ip, until in self._blocked_until.items() if until <= now]
-        for ip in expired:
+        expired_blocks = [ip for ip, until in self._blocked_until.items() if until <= now]
+        for ip in expired_blocks:
             del self._blocked_until[ip]
             self._failed_attempts.pop(ip, None)
+
+        # IPs with 1..(_FAILED_ATTEMPTS_LIMIT - 1) failures never reach _blocked_until, so
+        # the sweep above never touches them — without this, _failed_attempts grows
+        # unbounded, one entry per distinct (attacker-controlled) IP that ever failed a
+        # login at least once, however long ago. Trim each remaining IP's attempt list to
+        # the active window and drop any IP left with none.
+        stale_ips = []
+        for ip, attempts in self._failed_attempts.items():
+            attempts[:] = [t for t in attempts if t > now - _FAILED_ATTEMPTS_WINDOW_S]
+            if not attempts:
+                stale_ips.append(ip)
+        for ip in stale_ips:
+            del self._failed_attempts[ip]
 
 
 def verify_api_token(authorization_header: str, valid_tokens: set[str]) -> bool:
@@ -200,10 +229,16 @@ def verify_api_token(authorization_header: str, valid_tokens: set[str]) -> bool:
     if not authorization_header.startswith("Bearer "):
         return False
     presented = authorization_header.removeprefix("Bearer ").strip()
-    # Compare against every token rather than short-circuiting on the first match —
-    # any()'s early exit leaks which position in valid_tokens matched via timing,
-    # in principle allowing a binary search of a large token set.
-    return sum(hmac.compare_digest(presented, token) for token in valid_tokens) > 0
+    try:
+        # Compare against every token rather than short-circuiting on the first match —
+        # any()'s early exit leaks which position in valid_tokens matched via timing,
+        # in principle allowing a binary search of a large token set.
+        return sum(hmac.compare_digest(presented, token) for token in valid_tokens) > 0
+    except TypeError:
+        # compare_digest rejects str operands containing non-ASCII characters outright —
+        # a non-ASCII presented token can never legitimately match an ASCII secret, so
+        # treat it as "no match" (False) instead of letting the TypeError surface as a 500.
+        return False
 
 
 def is_secure_context(headers: Mapping[str, str]) -> bool:
@@ -214,7 +249,17 @@ def is_secure_context(headers: Mapping[str, str]) -> bool:
 
 
 def client_ip(headers: Mapping[str, str], client_host: str, trusted_proxies: set[str]) -> str:
-    """Resolve the real client IP, trusting forwarded headers only from trusted_proxies."""
+    """Resolve the real client IP, trusting forwarded headers only from trusted_proxies.
+
+    X-Forwarded-For's leftmost entry is taken as the client IP. This is only trustworthy
+    if the proxy in `trusted_proxies` OVERWRITES the header with the real client address
+    (e.g. nginx `proxy_set_header X-Forwarded-For $remote_addr;`) rather than APPENDING to
+    whatever the client sent (nginx's own default via `$proxy_add_x_forwarded_for`, which
+    lets a client set an arbitrary leftmost IP that survives to this function unchanged).
+    An appending proxy defeats per-IP brute-force blocking entirely — an attacker rotates
+    a fake X-Forwarded-For value and is never blocked. `CF-Connecting-IP` (checked first)
+    doesn't have this problem: Cloudflare sets it itself at the edge, ignoring client input.
+    """
     if client_host in trusted_proxies:
         cf = headers.get("cf-connecting-ip", "")
         if cf:
