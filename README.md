@@ -24,7 +24,7 @@ values.
 `requirements.txt`:
 
 ```
-redberry-webkit @ git+https://github.com/daniloreddy/redberry-webkit.git@v0.2.3
+redberry-webkit @ git+https://github.com/daniloreddy/redberry-webkit.git@v0.2.4
 ```
 
 ```bash

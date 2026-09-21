@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.2.4
+
+Findings from a security/bug audit ahead of making this repo public:
+
+- **auth.py**: `verify_api_token()` catches `TypeError` from `compare_digest` on a
+  non-ASCII Bearer token instead of letting it surface as a 500.
+- **auth.py**: `purge_expired_blocks()` now also drops stale sub-threshold
+  `_failed_attempts` entries (previously only IPs already in `_blocked_until` were
+  purged, leaking unbounded memory per distinct attacker-controlled IP).
+- **auth.py**: `set_password()` rotates the JWT signing secret, invalidating every
+  existing session (including a stolen cookie) on password change.
+- **auth.py**: `_save()` chmods the temp file before `os.replace()` instead of after,
+  closing a window where `auth.json` (holds the JWT secret) was briefly
+  world/group-readable per umask.
+- **auth.py**: `client_ip()` docstring documents the required proxy contract (must
+  overwrite `X-Forwarded-For`, not append) — an appending proxy lets a client spoof
+  its way past the per-IP brute-force block.
+- **config.py**: `update_many()` rejects a value ending in a backslash instead of
+  writing it — confirmed that shape breaks python-dotenv's own parser and silently
+  blanks the entire `.env` file on next reload.
+- **logging_utils.py**: `redact()` now matches `secret`/`token`/`password` as the tail
+  of a snake_case identifier (e.g. `ui_storage_secret`) and matches the plural
+  `API_TOKENS`; `CredentialFilter` now also redacts a record's formatted exception
+  traceback (`exc_text`), not just its message.
+- **timezone_utils.py**: `resolve_timezone()` also catches `ValueError` (raised by
+  `ZoneInfo("")` or a path-like value), not just `ZoneInfoNotFoundError`.
+- Added `LICENSE` (MIT).
+
+Test suite grown from 76 to 88 cases covering each fix.
+
 ## v0.2.3
 
 - **credentials.py**: `_DEFAULT_EXPIRY_KEY_PATH` updated from `("claudeAiOauth",
