@@ -4,14 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "redberry-webkit"
-version = "0.3.0"
-description = "Shared, project-agnostic building blocks for FastAPI + NiceGUI apps: env resolution, dashboard auth, hot-reloadable config, logging redaction, timezone handling, credential-expiry watching, request-table view-model."
+version = "0.4.0"
+description = "Shared, project-agnostic building blocks for FastAPI + NiceGUI apps: env resolution, dashboard auth, hot-reloadable config, logging redaction, timezone handling, credential-expiry watching, request-table view-model, shared page chrome."
 requires-python = ">=3.11"
 dependencies = [
     "python-dotenv>=1.0.1",
     "pyjwt>=2.8.0",
     "tzdata>=2024.1",
     "aiosqlite>=0.20.0",
+    "nicegui>=2.0.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -32,3 +33,4 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 pythonpath = ["."]
 asyncio_mode = "auto"
+main_file = "tests/_nicegui_app.py"

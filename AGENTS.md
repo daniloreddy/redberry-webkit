@@ -1,9 +1,17 @@
 # redberry-webkit — agent instructions
 
-Shared, project-agnostic pip package. No FastAPI/NiceGUI import in any
-module — pure logic, testable without a web framework. Every module takes
-paths/names/TTLs/fields as parameters: the package provides the mechanism,
-never the project-specific values.
+Shared, project-agnostic pip package. Every module takes paths/names/TTLs/fields
+as parameters: the package provides the mechanism, never the project-specific
+values.
+
+**Framework-import split (changed 2026-09-21):** every module except `ui.py` stays
+pure logic, no FastAPI/NiceGUI import, testable without a web framework — `auth.py`,
+`config.py`, `credentials.py`, `env_resolver.py`, `logging_utils.py`, `metrics.py`,
+`timezone_utils.py`, `request_view.py`. `ui.py` is the deliberate, sole exception: it
+imports NiceGUI directly (see its own note below for why and the tradeoffs accepted).
+Don't "fix" `ui.py` back to framework-free without discussing first — that's the
+whole point of the module — and don't add a NiceGUI/FastAPI import to any *other*
+module without the same explicit discussion.
 
 ## Why it exists
 
@@ -88,6 +96,43 @@ whether this package already covers it.
   `request_meta()` delegates IP resolution to `auth.client_ip()`; don't
   reimplement trusted-proxy/forwarded-header handling at a project's
   `metrics.record()` call site.
+
+- **`ui.py`** — imports NiceGUI directly, the one deliberate exception to
+  the framework-free rule above. Extracted after confirming
+  `_page_setup`/`_header`/`_footer`/`_logout_action` were duplicated
+  near-verbatim across mid_service_py, mailmanager, ragbot, PRO-form,
+  parallax-py, dca_signal — same shape the Go sibling already solved once
+  via `app.RenderPage`/`Options`/`NavItem`. `page()` is the single
+  entry point that replaces a project's whole `base_layout()`
+  contextmanager; `page_setup()`/`header()`/`footer()`/`metric_card()`/
+  `logout_action()` stay exported individually for a project that needs
+  finer control. `NavItem` is a `NamedTuple` (not a dataclass) so an
+  existing project's bare-tuple `NAV_ITEMS` list keeps working without a
+  forced migration to `NavItem(...)` call sites.
+
+  **Consequence of this exception**: the package now pulls in NiceGUI's
+  full dependency tree (FastAPI, Starlette, Uvicorn, Socket.IO, ...) for
+  every consumer, even one that only imports `auth.py`. Accepted
+  trade-off (2026-09-21) — every current consumer already depends on
+  NiceGUI directly anyway. Re-splitting into a separate package (e.g.
+  `redberry-nicegui-kit`) remains an option if a framework-free consumer
+  ever appears; not done preemptively.
+
+  **Testing `ui.py` — no Selenium/browser.** `nicegui.testing.User`
+  (in-process DOM simulation) is what the tests use, not
+  `nicegui.testing.Screen` (real-browser, needs `selenium`). The default
+  `pytest_plugins = ["nicegui.testing.plugin"]` pulls in `screen_plugin`
+  unconditionally (imports `selenium` at module level) even if a test
+  only touches `User` — so `tests/conftest.py` registers
+  `nicegui.testing.general_fixtures` + `nicegui.testing.user_plugin`
+  directly instead, skipping `screen_plugin` entirely. This needs a
+  `main_file` ini option (`tests/_nicegui_app.py`, a trivial `ui.run()`
+  stub — the `User` fixture's test harness requires *some* app entry
+  point to exist, even though it's never actually run as a server).
+  Confirmed working, sub-second, no browser/webdriver, on Windows +
+  Python 3.11 + NiceGUI 3.17. Don't switch to the full `nicegui.testing.plugin`
+  without confirming Selenium/a browser driver is actually available in
+  every environment `checks.bat`/CI runs in — it isn't today.
 
 ## Known risks, accepted by design
 

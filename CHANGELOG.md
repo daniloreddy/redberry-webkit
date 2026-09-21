@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.4.0
+
+- **New module `ui.py`**: `page()`, `page_setup()`, `header()`, `footer()`,
+  `metric_card()`, `logout_action()`, `NavItem`. Extracted after confirming
+  `_page_setup`/`_header`/`_footer`/`_logout_action` were duplicated near-verbatim
+  across mid_service_py, mailmanager, ragbot, PRO-form, parallax-py, dca_signal — the
+  Python-side gap in the same problem `redberry-webkit-go`'s `app.RenderPage`/
+  `Options`/`NavItem` already solved. `page()` is the single entry point that replaces
+  a project's `base_layout()` contextmanager; the individual functions stay exported
+  for projects that need finer control. `NavItem` is a `NamedTuple`, not a dataclass —
+  an existing bare-tuple `NAV_ITEMS` list keeps unpacking correctly, no forced
+  migration.
+- **Deliberate break from the "no FastAPI/NiceGUI import" rule** (see `AGENTS.md`):
+  `ui.py` imports NiceGUI directly — the only module that does. Every other module
+  stays framework-free. Accepted trade-off: the package now pulls NiceGUI's full
+  dependency tree for every consumer, but every current consumer already depends on
+  NiceGUI directly anyway.
+- Consumers must bump their `requirements.txt` pin to `v0.4.0` before importing
+  `redberry_webkit.ui` (new module — `v0.3.0` doesn't have it).
+- Test infra: `tests/conftest.py` + `tests/_nicegui_app.py` added to support
+  `nicegui.testing.User` (in-process DOM simulation) without pulling in Selenium —
+  bypasses `nicegui.testing.plugin`'s unconditional `screen_plugin`/`selenium` import
+  by registering `general_fixtures`/`user_plugin` directly. See `AGENTS.md`'s `ui.py`
+  note for the full mechanism.
+
 ## v0.3.0
 
 - **New module `request_view.py`**: `RequestRow` view-model, `request_rows_from_metrics()`,
