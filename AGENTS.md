@@ -80,6 +80,15 @@ whether this package already covers it.
   reviewed and accepted by-design in the v0.2.0 audit): whoever mounts the
   endpoint exposing the history decides the auth, not the module.
 
+- **`request_view.py`** — pure view-model over `MetricsRecord`, no
+  FastAPI/NiceGUI import (project still calls `ui.table(...)`/`add_slot(...)`
+  itself). `ip`/`user_agent` live in `MetricsRecord.extra["client_ip"]`/
+  `extra["user_agent"]`, not native columns — deliberate, avoids a
+  migration on `data/metrics.db` files already deployed across projects.
+  `request_meta()` delegates IP resolution to `auth.client_ip()`; don't
+  reimplement trusted-proxy/forwarded-header handling at a project's
+  `metrics.record()` call site.
+
 ## Known risks, accepted by design
 
 From the v0.2.0 audit (see CHANGELOG): **L5** — rate-limit state

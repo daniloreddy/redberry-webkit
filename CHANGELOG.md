@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.3.0
+
+- **New module `request_view.py`**: `RequestRow` view-model, `request_rows_from_metrics()`,
+  `REQUEST_TABLE_BASE_COLUMNS`, `STATUS_CELL_SLOT` — the request-history table shape
+  (timestamp/ip/status/duration/user-agent + the `body-cell-status` Vue badge slot) that
+  mid_service_py and mailmanager had each hand-duplicated (identical slot string in both).
+  Pure logic, no NiceGUI import — the project still owns `ui.table(...)`/`add_slot(...)`.
+  `ip`/`user_agent` come from `MetricsRecord.extra["client_ip"]`/`extra["user_agent"]`
+  (no schema migration on already-deployed `data/metrics.db` files) — a record missing
+  either key renders as an empty string, same fallback `redberry-webkit-go` uses for its
+  own pre-0.3.0 records. Native `ip`/`user_agent` columns are a deliberately deferred
+  follow-up, same two-stage path the Go sibling already took.
+- **New helper `request_meta()`**: resolves `(ip, user_agent)` from request headers for
+  passing into `metrics.record(extra=...)`. Delegates IP resolution to `auth.client_ip()`
+  (trusted-proxy aware) instead of letting each project reimplement forwarded-header
+  handling at the metrics call site.
+
 ## v0.2.4
 
 Findings from a security/bug audit ahead of making this repo public:
