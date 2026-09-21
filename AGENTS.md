@@ -4,15 +4,6 @@ Shared, project-agnostic pip package. Every module takes paths/names/TTLs/fields
 as parameters: the package provides the mechanism, never the project-specific
 values.
 
-**Framework-import split (changed 2026-09-21):** every module except `ui.py` stays
-pure logic, no FastAPI/NiceGUI import, testable without a web framework — `auth.py`,
-`config.py`, `credentials.py`, `env_resolver.py`, `logging_utils.py`, `metrics.py`,
-`timezone_utils.py`, `request_view.py`. `ui.py` is the deliberate, sole exception: it
-imports NiceGUI directly (see its own note below for why and the tradeoffs accepted).
-Don't "fix" `ui.py` back to framework-free without discussing first — that's the
-whole point of the module — and don't add a NiceGUI/FastAPI import to any *other*
-module without the same explicit discussion.
-
 ## Why it exists
 
 Born to avoid drift between projects that each reimplement the same logic
@@ -97,8 +88,7 @@ whether this package already covers it.
   reimplement trusted-proxy/forwarded-header handling at a project's
   `metrics.record()` call site.
 
-- **`ui.py`** — imports NiceGUI directly, the one deliberate exception to
-  the framework-free rule above. Extracted after confirming
+- **`ui.py`** — imports NiceGUI directly. Extracted after confirming
   `_page_setup`/`_header`/`_footer`/`_logout_action` were duplicated
   near-verbatim across mid_service_py, mailmanager, ragbot, PRO-form,
   parallax-py, dca_signal — same shape the Go sibling already solved once
@@ -110,7 +100,7 @@ whether this package already covers it.
   existing project's bare-tuple `NAV_ITEMS` list keeps working without a
   forced migration to `NavItem(...)` call sites.
 
-  **Consequence of this exception**: the package now pulls in NiceGUI's
+  **Consequence**: the package now pulls in NiceGUI's
   full dependency tree (FastAPI, Starlette, Uvicorn, Socket.IO, ...) for
   every consumer, even one that only imports `auth.py`. Accepted
   trade-off (2026-09-21) — every current consumer already depends on
