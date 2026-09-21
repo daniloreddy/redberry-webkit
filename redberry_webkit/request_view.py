@@ -9,7 +9,7 @@ from .auth import client_ip
 from .metrics import MetricsRecord
 
 REQUEST_TABLE_BASE_COLUMNS: list[dict[str, str]] = [
-    {"name": "timestamp", "label": "Quando", "field": "timestamp"},
+    {"name": "timestamp", "label": "TimeStamp", "field": "timestamp"},
     {"name": "ip", "label": "IP", "field": "ip"},
     {"name": "duration_s", "label": "Durata (s)", "field": "duration_s"},
     {"name": "status", "label": "Stato", "field": "status"},

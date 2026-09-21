@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.1
+
+- **`request_view.py`**: `REQUEST_TABLE_BASE_COLUMNS` timestamp column label changed
+  from `"Quando"` to `"TimeStamp"`.
+
 ## v0.4.0
 
 - **New module `ui.py`**: `page()`, `page_setup()`, `header()`, `footer()`,
