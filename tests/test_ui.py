@@ -1,10 +1,26 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 from nicegui import ui
 from nicegui.testing import User
 
-from redberry_webkit.ui import NavItem, footer, header, logout_action, metric_card, page, page_setup
+from redberry_webkit.ui import NavItem, _logout_js, footer, header, logout_action, metric_card, page, page_setup
+
+
+def test_logout_js_posts_not_gets() -> None:
+    # 2026-09-28 alignment with redberry-webkit-go/redberry-webkit-j: logout must POST,
+    # never a GET-style window.location.href navigation (CSRF-adjacent footgun).
+    js = _logout_js("/auth/logout")
+    assert "f.method='POST'" in js
+    assert "window.location.href" not in js
+    assert '"/auth/logout"' in js  # json.dumps-escaped, not a raw f-string splice
+
+
+def test_logout_js_escapes_path_for_js_string_literal() -> None:
+    js = _logout_js("/weird'path")
+    assert json.dumps("/weird'path") in js
 
 
 def test_nav_item_is_structurally_a_tuple() -> None:

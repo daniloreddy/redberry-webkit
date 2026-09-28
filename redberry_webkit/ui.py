@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import Any, NamedTuple
@@ -17,12 +18,28 @@ class NavItem(NamedTuple):
     path: str
 
 
+def _logout_js(logout_path: str) -> str:
+    """JS that POSTs to `logout_path` via a throwaway hidden form. Not a unit tested-in-browser
+    string, but pure enough to assert on directly (see test_ui.py) without spinning up NiceGUI's
+    JS runtime. `json.dumps` — not an f-string — escapes `logout_path` for safe embedding in the
+    JS string literal, even though today's only caller passes a trusted constant."""
+    path_js = json.dumps(logout_path)
+    return (
+        "var f=document.createElement('form');f.method='POST';"
+        f"f.action={path_js};document.body.appendChild(f);f.submit();"
+    )
+
+
 def logout_action(logout_path: str = "/auth/logout") -> None:
-    """Standard logout icon button. Navigates via JS, not `ui.navigate.to()` — logout is
-    a FastAPI route outside NiceGUI's `/ui` mount (@rules/nicegui.md §5)."""
+    """Standard logout icon button. POSTs via a JS-submitted hidden form, not
+    `ui.navigate.to()` or a GET navigation — logout mutates session state (clears the
+    cookie), and a GET/link-triggerable logout is a CSRF-adjacent footgun. Aligned with
+    redberry-webkit-go/redberry-webkit-j, which made this same call first (2026-09-28).
+    The route itself is a FastAPI route outside NiceGUI's `/ui` mount either way
+    (@rules/nicegui.md §5), so `ui.navigate.to()` was never an option here."""
     ui.button(
         icon="logout",
-        on_click=lambda: ui.run_javascript(f"window.location.href='{logout_path}'"),
+        on_click=lambda: ui.run_javascript(_logout_js(logout_path)),
     ).props("flat color=white round").tooltip("Esci")
 
 
