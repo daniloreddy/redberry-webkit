@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.6.0
+
+- **Golden conformance with webkit-go/-j** (repo `redberry-webkit-ui`): `tests/test_web_golden.py` renders the
+  shared fixtures and compares them, after normalization, with the HTML webkit-go produces. `tests/ui/` and
+  `web/static/{app.css,app.js}` are copies synced by that repo's `scripts/sync.py`; never edit them here.
+- **Inline scripts moved to `web/static/app.js`** (theme toggle, footer live-status relocation, status popover),
+  loaded by `layout.html` as `/ui/_assets/app.js`. Hosts that mount `STATIC_DIR` at `/ui/_assets` get it for free;
+  a host that serves the assets some other way must serve `app.js` too. The anti-flash boot script stays inline.
+- **Aligned with webkit-go** (found by the golden test): the login page title is `Login — <app>`; password
+  fields get `autocomplete="new-password"` and a "Rimuovi il valore attuale" checkbox (`<key>__clear`).
+- **New `ConfigManager.clear_keys()`** and `web.parse_config_clears()`: the explicit way to remove a key from
+  `.env` (a blank form value still never clears). `parse_config_form()` is unchanged.
+
 ## v0.5.1
 
 - **Favicon/logo in `web`**, same logic as `redberry-webkit-go`/`-j`: `WebLayout(favicon=bytes, logo=bytes)`

@@ -1,0 +1,31 @@
+{
+  "_comment": "Input of the golden conformance tests. Each webkit (Go, Java, Python) renders these cases with its own engine and compares the result, after normalization (see README), with golden/<case>.html. Avoid quotes and '>' in text values: engines escape them differently.",
+  "app_name": "Fixture App",
+  "nav": [
+    { "label": "Home", "href": "/ui/", "icon": "<svg width=\"20\" height=\"20\"><path d=\"M0 0\"/></svg>" },
+    { "label": "Log", "href": "/ui/log", "icon": "<svg width=\"20\" height=\"20\"><path d=\"M1 1\"/></svg>" }
+  ],
+  "extra_head": "<link rel=\"stylesheet\" href=\"/ui/_assets/project.css\">",
+  "content": "<p>content</p>",
+  "fields": [
+    { "key": "TZ", "label": "Timezone", "help": "IANA name", "type": "text" },
+    { "key": "PORT", "label": "Port", "help": "", "type": "number" },
+    { "key": "DEBUG", "label": "Debug", "help": "", "type": "bool" },
+    { "key": "NOTE", "label": "Note", "help": "", "type": "text" },
+    { "key": "TOKEN", "label": "Token", "help": "", "type": "text", "password": true }
+  ],
+  "values": { "TZ": "Europe/Rome", "PORT": "8000", "DEBUG": "true", "NOTE": "a & b <c", "TOKEN": "secret" },
+  "cases": {
+    "layout_full": { "kind": "layout", "title": "Dashboard", "nav_current": "log", "footer_right": "v1", "favicon": true, "logo": true },
+    "layout_minimal": { "kind": "layout", "title": "Dashboard", "nav_current": "", "footer_right": "", "favicon": false, "logo": false },
+    "login": { "kind": "login", "error_code": "", "favicon": true },
+    "login_invalid": { "kind": "login", "error_code": "invalid", "favicon": false },
+    "config": { "kind": "config", "saved": false },
+    "config_saved": { "kind": "config", "saved": true }
+  },
+  "status_badges": [
+    { "status": "ok", "error": "" },
+    { "status": "error", "error": "boom & bust" },
+    { "status": "timeout", "error": "" }
+  ]
+}

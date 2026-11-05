@@ -11,6 +11,7 @@ from .render import (
     WebLayout,
     detect_image_content_type,
     login_error_message,
+    parse_config_clears,
     parse_config_form,
 )
 from .status import status_badge, status_class
@@ -26,6 +27,7 @@ __all__ = [
     "detect_image_content_type",
     "icon",
     "login_error_message",
+    "parse_config_clears",
     "parse_config_form",
     "status_badge",
     "status_class",

@@ -12,6 +12,7 @@ from redberry_webkit.web import (
     detect_image_content_type,
     icon,
     login_error_message,
+    parse_config_clears,
     parse_config_form,
     status_badge,
 )
@@ -174,3 +175,18 @@ def test_layout_asset_lookup() -> None:
     assert layout.asset("favicon") is None
     assert layout.asset("other") is None
     assert ASSET_CACHE_CONTROL == "public, max-age=86400"
+
+
+def test_parse_config_clears_only_password_fields_with_ticked_box() -> None:
+    fields = [ConfigField("TOKEN", "Token", password=True), ConfigField("NOTE", "Note")]
+
+    assert parse_config_clears(fields, {"TOKEN__clear": "on", "NOTE__clear": "on"}) == ["TOKEN"]
+    assert parse_config_clears(fields, {"TOKEN": "x"}) == []
+
+
+def test_password_field_renders_clear_checkbox() -> None:
+    html = _layout().render_config([ConfigField("TOKEN", "Token", password=True)], {"TOKEN": "secret"})
+
+    assert 'name="TOKEN__clear"' in html
+    assert 'autocomplete="new-password"' in html
+    assert "secret" not in html

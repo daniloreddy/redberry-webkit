@@ -149,3 +149,18 @@ def test_reload_if_stale_picks_up_external_edits(tmp_path: Path) -> None:
 
     assert config.reload_if_stale() is True
     assert config.get("FOO") == "new"
+
+
+def test_clear_keys_removes_from_env_and_falls_back_to_default(tmp_path: Path) -> None:
+    env_file = tmp_path / ".env"
+    env_file.write_text("TOKEN=secret\nKEEP=1\nEXTRA=x\n", encoding="utf-8")
+    config = ConfigManager(defaults={"TOKEN": "default-token"}, env_path=env_file)
+
+    config.clear_keys(["TOKEN", "EXTRA", "not a key"])
+
+    assert config.get("TOKEN") == "default-token"
+    assert config.get("EXTRA") == ""
+    assert config.get("KEEP") == "1"
+    assert "TOKEN" not in env_file.read_text(encoding="utf-8")
+    config.reload_if_stale()
+    assert config.get("TOKEN") == "default-token"

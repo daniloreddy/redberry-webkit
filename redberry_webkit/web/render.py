@@ -91,6 +91,14 @@ def login_error_message(code: str) -> str:
     return LOGIN_ERRORS.get(code, "")
 
 
+def parse_config_clears(fields: Sequence[ConfigField], form: Mapping[str, str]) -> list[str]:
+    """Return the password-field keys whose "remove the current value" checkbox (`<key>__clear`) was ticked.
+
+    Pass them to `ConfigManager.clear_keys()`; they are never part of `parse_config_form()`'s updates.
+    """
+    return [f.key for f in fields if f.password and form.get(f"{f.key}__clear", "").strip() == "on"]
+
+
 def parse_config_form(fields: Sequence[ConfigField], form: Mapping[str, str]) -> tuple[dict[str, str], str]:
     """Turn a posted config form into `ConfigManager.update_many()` input.
 
@@ -187,7 +195,7 @@ class WebLayout:
         form = _ENV.get_template("login_form.html").render(
             app_name=self.app_name, error=login_error_message(error_code)
         )
-        return self.render_auth(f"{self.app_name} · Login", Markup(form))
+        return self.render_auth("Login", Markup(form))
 
     def render_config(
         self,

@@ -9,7 +9,8 @@
         {{ f.label }}
         <input type="{{ 'password' if f.password else ('number' if f.type == 'number' else 'text') }}"
                name="{{ f.key }}"
-               {% if f.password %}placeholder="(invariata)"{% else %}value="{{ f.value }}"{% endif %}>
+               {% if f.password %}placeholder="(invariata)" autocomplete="new-password"{% else %}value="{{ f.value }}"{% endif %}>
+        {% if f.password %}<small><label style="display:inline"><input type="checkbox" name="{{ f.key }}__clear"> Rimuovi il valore attuale</label></small>{% endif %}
       {% endif %}
       {% if f.help %}<small>{{ f.help }}</small>{% endif %}
     </label>

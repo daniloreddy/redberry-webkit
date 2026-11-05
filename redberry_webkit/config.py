@@ -3,9 +3,10 @@ from __future__ import annotations
 import logging
 import re
 import threading
+from collections.abc import Iterable
 from pathlib import Path
 
-from dotenv import dotenv_values, set_key
+from dotenv import dotenv_values, set_key, unset_key
 
 from .env_resolver import resolve_env_path
 
@@ -85,6 +86,24 @@ class ConfigManager:
     def get_public(self) -> dict[str, str]:
         """Full config with secret values masked — safe to render in a web-UI config page."""
         return {k: ("***" if k in self._secret_keys else v) for k, v in self._cache.items()}
+
+    def clear_keys(self, keys: Iterable[str]) -> None:
+        """Remove keys from .env and fall back to their defaults.
+
+        The explicit counterpart of `update_many()`, which never clears: called only for a ticked
+        "remove the current value" checkbox, never as a side effect of saving a blank field.
+        """
+        with self._write_lock:
+            for key in keys:
+                if not _KEY_RE.match(key):
+                    logger.warning("Config: refusing to clear invalid key %r", key)
+                    continue
+                if self._env_path.exists():
+                    unset_key(str(self._env_path), key)
+                if key in self._defaults:
+                    self._cache[key] = self._defaults[key]
+                else:
+                    self._cache.pop(key, None)
 
     def update_many(self, updates: dict[str, str]) -> None:
         """Called by the web-UI save handler — writes straight to .env.
