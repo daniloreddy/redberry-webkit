@@ -1,0 +1,19 @@
+<div class="wk-form">
+  {% if banner %}<p class="banner {{ 'ok' if banner_ok else 'err' }}">{{ banner }}</p>{% endif %}
+  <form method="post" action="/ui/config">
+    {% for f in fields %}
+    <label>
+      {% if f.type == "bool" %}
+        <input type="checkbox" name="{{ f.key }}"{% if f.value == "true" %} checked{% endif %}> {{ f.label }}
+      {% else %}
+        {{ f.label }}
+        <input type="{{ 'password' if f.password else ('number' if f.type == 'number' else 'text') }}"
+               name="{{ f.key }}"
+               {% if f.password %}placeholder="(invariata)"{% else %}value="{{ f.value }}"{% endif %}>
+      {% endif %}
+      {% if f.help %}<small>{{ f.help }}</small>{% endif %}
+    </label>
+    {% endfor %}
+    <button type="submit">Salva</button>
+  </form>
+</div>

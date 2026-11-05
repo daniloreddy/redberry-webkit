@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.5.0
+
+- **New package `redberry_webkit.web`**: framework-free port of `redberry-webkit-go`'s shared HTML
+  layer (Jinja2, no FastAPI/NiceGUI import). `WebLayout` renders the page chrome (`render_page`),
+  pre-auth shell (`render_auth`), login (`render_login`) and runtime-config page (`render_config`);
+  `NavItem`, `icon()`, `status_badge()`, `ConfigField`/`FieldType`, `parse_config_form()`,
+  `login_error_message()`. `STATIC_DIR` holds `app.css` (verbatim copy of webkit-go's): mount it at
+  `/ui/_assets` (auth-exempt) in the host app. Autoescape is on: `content` must be `Markup` to emit HTML.
+- **Logout is POST** (form in the topbar), same as `ui.py` and `redberry-webkit-j`. `redberry-webkit-go`
+  still uses GET `/auth/logout` and has to catch up.
+- **No `__clear` checkbox on the config page**: `ConfigManager.update_many()` deliberately never clears a
+  key from the UI, so the Go-side "Rimuovi il valore attuale" control has no Python counterpart.
+- **Additive**: `ui.py` (NiceGUI) and the `nicegui` dependency are untouched; remove them only once the
+  last consumer has migrated to `web`. New dependency: `jinja2>=3.1.0`.
+
 ## v0.4.1
 
 - **`request_view.py`**: `REQUEST_TABLE_BASE_COLUMNS` timestamp column label changed

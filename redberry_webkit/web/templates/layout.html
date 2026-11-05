@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}" data-theme="dark">
+<head>
+{% include "_head.html" %}
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    {% if has_logo %}<img class="app-logo" src="/ui/_assets/logo" alt="">{% endif %}
+    <span class="app-title">{{ app_name }}</span>
+    <nav class="nav">
+      {% for n in nav -%}
+        {% if n.active %}<span class="nav-link active" title="{{ n.label }}">{{ n.icon }}</span>
+        {%- else %}<a class="nav-link" href="{{ n.href }}" title="{{ n.label }}">{{ n.icon }}</a>{% endif %}
+      {%- endfor %}
+      <button class="icon-btn" id="wk-theme-toggle" type="button" title="Tema chiaro/scuro">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
+      </button>
+      <form method="post" action="/auth/logout" style="margin:0">
+        <button class="icon-btn" type="submit" title="Esci">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/><path d="M12 2v10"/></svg>
+        </button>
+      </form>
+    </nav>
+  </div>
+</header>
+<main class="container">
+{{ content }}
+</main>
+<footer class="footer"><span>{{ app_name }}</span><span id="wk-live-status"></span>{% if footer_right %}<span class="footer-right">{{ footer_right }}</span>{% endif %}</footer>
+<script>
+(function () {
+  var b = document.getElementById('wk-theme-toggle');
+  if (!b) return;
+  b.addEventListener('click', function () {
+    var d = document.documentElement.getAttribute('data-theme') !== 'dark';
+    document.documentElement.setAttribute('data-theme', d ? 'dark' : 'light');
+    try { localStorage.setItem('dark_mode', String(d)); } catch (e) {}
+  });
+})();
+</script>
+<script>
+(function () {
+  // Relocate a project's auto-refresh status line into the shared footer. An
+  // auto-refreshing page renders <label class="refresh-lbl"> at the tail of
+  // #live ("Aggiornato: HH:MM:SS · auto-refresh Ns"); we copy its text into
+  // #wk-live-status on the app-name row and keep it in sync on every HTMX swap.
+  var slot = document.getElementById('wk-live-status');
+  if (!slot) return;
+  function sync() {
+    var src = document.querySelector('#live .refresh-lbl');
+    slot.textContent = src ? src.textContent : '';
+    if (src) document.documentElement.classList.add('wk-has-live-status');
+  }
+  document.addEventListener('htmx:afterSwap', sync);
+  sync();
+})();
+</script>
+<script>
+(function () {
+  // Request tables: upgrade an error status badge from its native title=
+  // tooltip to a click-to-open popover holding the full, selectable message.
+  var pop = null;
+  function close() { if (pop) { pop.remove(); pop = null; } }
+  document.addEventListener('click', function (e) {
+    var badge = e.target.closest ? e.target.closest('.wk-status.err[data-error]') : null;
+    if (!badge) { close(); return; }
+    e.preventDefault();
+    if (pop && pop._for === badge) { close(); return; }
+    close();
+    pop = document.createElement('div');
+    pop.className = 'wk-status-pop';
+    pop.textContent = badge.getAttribute('data-error');
+    pop._for = badge;
+    document.body.appendChild(pop);
+    var r = badge.getBoundingClientRect();
+    pop.style.top = Math.max(8, Math.min(r.bottom + 6, window.innerHeight - pop.offsetHeight - 8)) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + 'px';
+  });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+  document.addEventListener('htmx:beforeSwap', close);
+})();
+</script>
+</body>
+</html>

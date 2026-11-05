@@ -155,3 +155,10 @@ Every public module: a corresponding `test_<module>.py` in `tests/`. A
 behavior fix (not just a feature) needs a test that fails *before* the fix
 and passes *after* — see the style of the tests in `test_config.py` for
 `update_many()` (one per rejection/acceptance case).
+
+- **`web/`** — framework-free Jinja2 port of `redberry-webkit-go/app` (layout, login/config
+  forms, `app.css`, status badge). Returns `str`, never touches FastAPI/Starlette: the host app owns the
+  routes (`/login`, `/auth/login|logout`, `/ui/config`, `/health`) and mounts `web.STATIC_DIR` at
+  `/ui/_assets`. Autoescape is on (`StrictUndefined`): HTML goes in as `Markup`, plain `str` is
+  escaped. Keep `app.css` and the templates in sync with webkit-go (copy, don't edit here first).
+  Logout is POST. Replaces `ui.py` (NiceGUI), kept until every consumer has migrated.
