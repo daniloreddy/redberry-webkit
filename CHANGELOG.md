@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.5.1
+
+- **Favicon/logo in `web`**, same logic as `redberry-webkit-go`/`-j`: `WebLayout(favicon=bytes, logo=bytes)`
+  (replaces the unused `has_favicon`/`has_logo` flags). The layout links the favicon on every page and
+  shows the logo left of the app name in the topbar (not on the login page). `WebLayout.asset(name)` returns
+  `(bytes, content_type)` for the host app's `/ui/_assets/favicon` and `/logo` routes (auth-exempt, send
+  `ASSET_CACHE_CONTROL`). New `detect_image_content_type()` sniffs PNG/JPEG/GIF/ICO/WebP/SVG by magic number
+  (SVG included: that is what webkit-go's `http.DetectContentType` got wrong; fixed there too).
+
 ## v0.5.0
 
 - **New package `redberry_webkit.web`**: framework-free port of `redberry-webkit-go`'s shared HTML

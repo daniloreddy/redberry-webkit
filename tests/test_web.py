@@ -3,11 +3,13 @@ from __future__ import annotations
 from markupsafe import Markup
 
 from redberry_webkit.web import (
+    ASSET_CACHE_CONTROL,
     STATIC_DIR,
     ConfigField,
     FieldType,
     NavItem,
     WebLayout,
+    detect_image_content_type,
     icon,
     login_error_message,
     parse_config_form,
@@ -55,7 +57,7 @@ def test_app_name_and_title_are_escaped() -> None:
 
 
 def test_logo_and_favicon_flags() -> None:
-    html = WebLayout("A", has_logo=True, has_favicon=True).render_page("T", "", Markup(""))
+    html = WebLayout("A", logo=b"<svg/>", favicon=b"<svg/>").render_page("T", "", Markup(""))
 
     assert 'src="/ui/_assets/logo"' in html
     assert 'href="/ui/_assets/favicon"' in html
@@ -143,3 +145,32 @@ def test_status_badge_ok_and_error() -> None:
 def test_icon_unknown_is_empty() -> None:
     assert icon("nope") == ""
     assert icon("home").startswith("<svg")
+
+
+def test_logo_only_in_topbar_not_on_login_page() -> None:
+    layout = WebLayout("A", logo=b"<svg/>")
+
+    assert 'class="app-logo"' in layout.render_page("T", "", Markup(""))
+    assert "app-logo" not in layout.render_login()
+
+
+def test_detect_image_content_type_shared_format_set() -> None:
+    assert detect_image_content_type(bytes.fromhex("89504e470d0a1a0a") + b"x") == "image/png"
+    assert detect_image_content_type(bytes.fromhex("ffd8ffe0")) == "image/jpeg"
+    assert detect_image_content_type(b"GIF89a...") == "image/gif"
+    assert detect_image_content_type(bytes.fromhex("00000100") + b"x") == "image/x-icon"
+    assert detect_image_content_type(b"RIFF" + bytes(4) + b"WEBPVP8 ") == "image/webp"
+    assert detect_image_content_type(b"<svg></svg>") == "image/svg+xml"
+    assert detect_image_content_type(b'<?xml version="1.0"?><svg/>') == "image/svg+xml"
+    assert detect_image_content_type("\N{ZERO WIDTH NO-BREAK SPACE}  <svg/>".encode()) == "image/svg+xml"
+    assert detect_image_content_type(b"hello") == "application/octet-stream"
+    assert detect_image_content_type(b"") == "application/octet-stream"
+
+
+def test_layout_asset_lookup() -> None:
+    layout = WebLayout("A", logo=b"<svg/>")
+
+    assert layout.asset("logo") == (b"<svg/>", "image/svg+xml")
+    assert layout.asset("favicon") is None
+    assert layout.asset("other") is None
+    assert ASSET_CACHE_CONTROL == "public, max-age=86400"

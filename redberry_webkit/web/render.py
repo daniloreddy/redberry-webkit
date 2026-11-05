@@ -58,6 +58,34 @@ class ConfigField:
     password: bool = False
 
 
+ASSET_CACHE_CONTROL = "public, max-age=86400"
+"""`Cache-Control` value for the favicon/logo responses (same as webkit-go/-j)."""
+
+
+_PNG_MAGIC = bytes.fromhex("89504e470d0a1a0a")
+_JPEG_MAGIC = bytes.fromhex("ffd8ff")
+_ICO_MAGIC = bytes.fromhex("00000100")
+_BOM = "\N{ZERO WIDTH NO-BREAK SPACE}"
+
+
+def detect_image_content_type(data: bytes) -> str:
+    """Sniff a favicon/logo content type by magic number (PNG, JPEG, GIF, ICO, WebP, SVG), else octet-stream."""
+    if data.startswith(_PNG_MAGIC):
+        return "image/png"
+    if data.startswith(_JPEG_MAGIC):
+        return "image/jpeg"
+    if data.startswith(b"GIF8"):
+        return "image/gif"
+    if data.startswith(_ICO_MAGIC):
+        return "image/x-icon"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    head = data[:256].decode("utf-8", errors="ignore").lstrip(_BOM).lstrip()
+    if head.startswith(("<?xml", "<svg")):
+        return "image/svg+xml"
+    return "application/octet-stream"
+
+
 def login_error_message(code: str) -> str:
     """Return the message for a login `?error=` code, or an empty string if unknown/empty."""
     return LOGIN_ERRORS.get(code, "")
@@ -91,6 +119,11 @@ def parse_config_form(fields: Sequence[ConfigField], form: Mapping[str, str]) ->
 class WebLayout:
     """Renders the shared page chrome (topbar, nav, theme toggle, logout, footer) and the login/config pages.
 
+    `favicon`/`logo` are optional raw image bytes: when given, the layout links the favicon on every
+    page and shows the logo left of the app name in the topbar (not on the login page). The host app
+    serves them at `/ui/_assets/favicon` and `/ui/_assets/logo` (auth-exempt) from `asset()`, with
+    `ASSET_CACHE_CONTROL`.
+
     Framework-free: every `render_*` returns an HTML `str`. `content` must be `markupsafe.Markup` to be
     emitted as HTML; a plain `str` is escaped. `extra_head` and `NavItem.icon` are trusted markup;
     `footer_right` is escaped text. `nav_items` may be replaced at runtime for a dynamic nav.
@@ -103,17 +136,22 @@ class WebLayout:
         *,
         extra_head: str = "",
         footer_right: str = "",
-        has_favicon: bool = False,
-        has_logo: bool = False,
+        favicon: bytes | None = None,
+        logo: bytes | None = None,
         lang: str = "it",
     ) -> None:
         self.app_name = app_name
         self.nav_items: list[NavItem] = list(nav_items)
         self.extra_head = extra_head
         self.footer_right = footer_right
-        self.has_favicon = has_favicon
-        self.has_logo = has_logo
+        self.favicon = favicon
+        self.logo = logo
         self.lang = lang
+
+    def asset(self, name: str) -> tuple[bytes, str] | None:
+        """Return `(bytes, content_type)` for `"favicon"` or `"logo"`, or None when unset/unknown (answer 404)."""
+        data = {"favicon": self.favicon, "logo": self.logo}.get(name)
+        return None if not data else (data, detect_image_content_type(data))
 
     def _context(self, title: str, content: str) -> dict[str, object]:
         return {
@@ -121,7 +159,7 @@ class WebLayout:
             "title": title,
             "content": content,
             "extra_head": Markup(self.extra_head),
-            "has_favicon": self.has_favicon,
+            "has_favicon": bool(self.favicon),
             "lang": self.lang,
         }
 
@@ -137,7 +175,7 @@ class WebLayout:
             for n in self.nav_items
         ]
         ctx = self._context(title, content)
-        ctx.update(nav=nav, footer_right=self.footer_right, has_logo=self.has_logo)
+        ctx.update(nav=nav, footer_right=self.footer_right, has_logo=bool(self.logo))
         return _ENV.get_template("layout.html").render(ctx)
 
     def render_auth(self, title: str, content: str) -> str:
