@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.7.0
+
+- **New `redberry_webkit.bootstrap`** (optional extra `redberry-webkit[app]`): `AppSpec` + `create_app()` + `run()`.
+  Moves into the package the wiring every project used to copy from the template's `main.py`/`router.py`/`pages.py`:
+  .env loading, logging with credential redaction, `ConfigManager`, `AuthManager` (cookie `<slug>_session`),
+  login/logout routes with the scrypt semaphore + timeout, the `/ui/*` auth gate, `/health`, `/`, the `/ui/config`
+  page (REFRESH_INTERVAL / RATE_LIMIT validation plus an optional `validate_config` hook), favicon/logo routes,
+  static mounts, slowapi rate limiter, the `verify_api_token` dependency, lifespan background loops that crash the
+  process if they die, and the `--host/--port/--dev/--env-file` CLI. `web/` stays framework-free.
+  A project now supplies only its name/slug/nav/config fields/defaults and its own routers.
 ## v0.6.0
 
 - **Golden conformance with webkit-go/-j** (repo `redberry-webkit-ui`): `tests/test_web_golden.py` renders the

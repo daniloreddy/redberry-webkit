@@ -167,3 +167,9 @@ and passes *after* — see the style of the tests in `test_config.py` for
   Change the shared layout there first, never here alone.
   Favicon/logo: `WebLayout(favicon=bytes, logo=bytes)` + `asset(name)` (host serves `/ui/_assets/favicon|logo`,
   `ASSET_CACHE_CONTROL`); `detect_image_content_type` = same magic-number set as webkit-go/-j (SVG included).
+
+- **`bootstrap.py`** — FastAPI wiring shared by every dashboard project (extra `[app]`: fastapi, uvicorn,
+  python-multipart, slowapi). A project calls `create_app(AppSpec(...))` and only adds its own routers/endpoints;
+  it must not copy login routes, the auth gate, `/ui/config`, lifespan loops or the CLI back into its repo.
+  Behaviour that tests patch lives on `WebApp` attributes (`login_max_concurrent`, `login_verify_timeout_s`,
+  `auth`, `config`, `layout`), read at request time. Tests: `tests/test_bootstrap.py`.
