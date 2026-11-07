@@ -10,9 +10,9 @@ from markupsafe import Markup
 
 from redberry_webkit.web import ConfigField, FieldType, NavItem, WebLayout, status_badge
 
-# Golden conformance test against redberry-webkit-ui: the same fixtures and expected HTML that
-# redberry-webkit-go and redberry-webkit-j are tested against. tests/ui is a copy synced from the
-# redberry-webkit-ui repo (scripts/sync.py); never edit it here.
+# Golden regression test: tests/ui/fixtures.json is rendered and compared with tests/ui/golden/*.html.
+# This package is the source of those files: when a template or app.css change is intended, update the
+# golden files in the same commit.
 
 _UI = Path(__file__).parent / "ui"
 _FIXTURES: dict[str, Any] = json.loads((_UI / "fixtures.json").read_text(encoding="utf-8"))

@@ -1,4 +1,4 @@
-"""Framework-free HTML layer shared with redberry-webkit-go/-j: Jinja2 page chrome, login/config pages, assets."""
+"""Framework-free HTML layer: Jinja2 page chrome, login/config pages, assets."""
 
 from .icons import icon
 from .render import (

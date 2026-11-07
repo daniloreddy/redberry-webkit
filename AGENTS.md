@@ -160,11 +160,11 @@ and passes *after* — see the style of the tests in `test_config.py` for
   forms, `app.css`, status badge). Returns `str`, never touches FastAPI/Starlette: the host app owns the
   routes (`/login`, `/auth/login|logout`, `/ui/config`, `/health`) and mounts `web.STATIC_DIR` at
   `/ui/_assets`. Autoescape is on (`StrictUndefined`): HTML goes in as `Markup`, plain `str` is
-  escaped. Keep `app.css` and the templates in sync with webkit-go (copy, don't edit here first).
+  escaped. This package is now the single source of the UI: `web/static/{app.css,app.js}` and the golden files are edited here.
   Logout is POST. Replaces `ui.py` (NiceGUI), kept until every consumer has migrated.
-  `web/static/{app.css,app.js}` and `tests/ui/` are **synced copies** of the `redberry-webkit-ui` repo
-  (`scripts/sync.py`); `tests/test_web_golden.py` fails if the templates drift from webkit-go's output.
-  Change the shared layout there first, never here alone.
+  `tests/ui/` (fixtures + golden HTML) and `tests/test_web_golden.py` freeze the rendered chrome: when a change to
+  the templates or `app.css` is intended, update the golden files in the same commit. (The former `redberry-webkit-ui`
+  repo, which synced these files to the Go/Java webkits, is retired: those two are no longer kept aligned.)
   Favicon/logo: `WebLayout(favicon=bytes, logo=bytes)` + `asset(name)` (host serves `/ui/_assets/favicon|logo`,
   `ASSET_CACHE_CONTROL`); `detect_image_content_type` = same magic-number set as webkit-go/-j (SVG included).
 
