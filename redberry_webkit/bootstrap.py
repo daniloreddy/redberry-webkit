@@ -16,11 +16,12 @@ import asyncio
 import logging
 import os
 import re
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
+from typing import Any
 
 import uvicorn
 from dotenv import load_dotenv
@@ -160,6 +161,7 @@ class WebApp:
             logo=_read_optional(static_dir, "logo.svg", "logo.png"),
         )
         self.limiter = Limiter(key_func=self._rate_limit_key)
+        self._background: list[Callable[[], Coroutine[Any, Any, None]]] = []
         self._login_semaphore = asyncio.Semaphore(self.login_max_concurrent)
 
         self.app = FastAPI(
@@ -215,6 +217,14 @@ class WebApp:
 
     # --- lifecycle ------------------------------------------------------------------------------
 
+    def add_background(self, factory: Callable[[], Coroutine[Any, Any, None]]) -> None:
+        """Run ``factory()`` as a task for the app's lifetime (started in the lifespan, cancelled at shutdown).
+
+        The coroutine should loop forever; one that raises ends the process like the built-in loops (a silent dead
+        collector is worse than a restart under the supervisor).
+        """
+        self._background.append(factory)
+
     async def _config_reload_loop(self, interval_s: float) -> None:
         while True:
             await asyncio.sleep(interval_s)
@@ -232,9 +242,14 @@ class WebApp:
         purge_task.add_done_callback(_crash_on_task_error)
         config_task = asyncio.create_task(self._config_reload_loop(CONFIG_RELOAD_INTERVAL_S))
         config_task.add_done_callback(_crash_on_task_error)
-        yield
-        purge_task.cancel()
-        config_task.cancel()
+        extra = [asyncio.create_task(factory()) for factory in self._background]
+        for task in extra:
+            task.add_done_callback(_crash_on_task_error)
+        try:
+            yield
+        finally:
+            for task in (purge_task, config_task, *extra):
+                task.cancel()
 
     async def _auth_gate(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path

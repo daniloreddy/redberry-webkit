@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.9.0
+
+- **`WebApp.add_background(factory)`**: run an extra coroutine (collector, poller, retention purge) for the app's
+  lifetime. Started in the lifespan next to the built-in loops, cancelled at shutdown; one that dies unexpectedly
+  ends the process like they do (`_crash_on_task_error`). Additive: existing apps are unaffected.
+
 ## v0.8.0
 
 - **New `redberry_webkit.mcp`** (optional extras `redberry-webkit[app,mcp]`): the transport side of an in-process MCP

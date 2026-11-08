@@ -238,3 +238,23 @@ def test_project_static_dir_is_mounted(tmp_path: Path, monkeypatch: pytest.Monke
     w = create_app(_spec(tmp_path))
     with TestClient(w.app) as c:
         assert c.get("/ui/_static/app.css").status_code == 200
+
+
+def test_add_background_runs_for_the_app_lifetime(web: WebApp) -> None:
+    import asyncio
+
+    state = {"started": False, "cancelled": False}
+
+    async def loop() -> None:
+        state["started"] = True
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            state["cancelled"] = True
+            raise
+
+    web.add_background(loop)
+    with TestClient(web.app) as c:
+        assert c.get("/health").status_code == 200
+        assert state["started"]
+    assert state["cancelled"]
