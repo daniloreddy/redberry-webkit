@@ -13,6 +13,7 @@ code, same behavior, imported once instead of rewritten project by project.
 | `logging_utils` | `redact()` + `CredentialFilter` — scrubs passwords/tokens/secrets from logs |
 | `timezone_utils` | `resolve_timezone(tz_name)` — safe `ZoneInfo`, falls back to UTC with a warning |
 | `credentials` | `watch_loop()` / `CredentialsStatus` — generic expiry monitor for an external CLI's OAuth credentials JSON |
+| `mcp` | Optional (`[app,mcp]` extras): in-process MCP server at `/mcp` — `mount_mcp(web, build_server)`, `McpGuard` (global rate limit -> global concurrency cap -> Bearer `API_TOKENS`), `MCP_CONFIG_DEFAULTS`/`MCP_CONFIG_FIELDS`, `current_client()` |
 | `metrics` | `MetricsStore` — async request history on SQLite (record/get_stats/get_history/purge_old), free-form `extra` field for project-specific data |
 
 Every module takes project-specific values (paths, cookie names, TTLs, JSON

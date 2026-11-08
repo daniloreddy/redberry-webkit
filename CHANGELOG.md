@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.8.0
+
+- **New `redberry_webkit.mcp`** (optional extras `redberry-webkit[app,mcp]`): the transport side of an in-process MCP
+  server, extracted from `imap-rest`. `mount_mcp(web, build_server)` serves the project's `MCPServer` (mcp >= 2) at
+  `/mcp` (stateless JSON streamable HTTP, rebuilt on each lifespan start); `McpGuard` applies a global rate limit
+  (`MCP_RATE_LIMIT`), a global concurrency cap (`MCP_MAX_CONCURRENT`) and the fail-closed Bearer check on
+  `API_TOKENS`, in that order. `MCP_CONFIG_DEFAULTS` / `MCP_CONFIG_FIELDS` plug the two guard settings into
+  `AppSpec` (editable from `/ui/config`); `current_client()` and `validation_message()` are helpers for tools.
+
 ## v0.7.0
 
 - **New `redberry_webkit.bootstrap`** (optional extra `redberry-webkit[app]`): `AppSpec` + `create_app()` + `run()`.

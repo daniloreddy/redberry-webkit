@@ -173,3 +173,14 @@ and passes *after* — see the style of the tests in `test_config.py` for
   it must not copy login routes, the auth gate, `/ui/config`, lifespan loops or the CLI back into its repo.
   Behaviour that tests patch lives on `WebApp` attributes (`login_max_concurrent`, `login_verify_timeout_s`,
   `auth`, `config`, `layout`), read at request time. Tests: `tests/test_bootstrap.py`.
+
+- **`mcp.py`** — in-process MCP server for a webkit app (extras `[app,mcp]`: mcp >= 2, limits). The project builds its
+  own `MCPServer` (tools) and calls `mount_mcp(web, build_server)`; the module owns the transport side that is
+  identical for every service: stateless-JSON streamable HTTP at `/mcp` and `McpGuard` (global rate limit
+  `MCP_RATE_LIMIT` -> global concurrency cap `MCP_MAX_CONCURRENT` -> Bearer from `API_TOKENS`, 503 when unset,
+  constant-time compare). Projects spread `MCP_CONFIG_DEFAULTS`/`MCP_CONFIG_FIELDS` into their `AppSpec`.
+  `build_server` is called on **every lifespan start** (the SDK session manager runs once per instance); the
+  endpoint object carries `__name__` because slowapi's middleware reads it; SDK DNS-rebinding protection is
+  disabled on purpose (tunnel forwards the public Host to 127.0.0.1; the Bearer gate covers the risk).
+  `current_client()` gives tools the caller's IP/User-Agent (ContextVar set by the guard). Guideline:
+  `~/.claude/guidelines/py-mcp.md`. Tests: `tests/test_mcp.py`.
