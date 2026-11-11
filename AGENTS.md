@@ -100,13 +100,9 @@ whether this package already covers it.
   existing project's bare-tuple `NAV_ITEMS` list keeps working without a
   forced migration to `NavItem(...)` call sites.
 
-  **Consequence**: the package now pulls in NiceGUI's
-  full dependency tree (FastAPI, Starlette, Uvicorn, Socket.IO, ...) for
-  every consumer, even one that only imports `auth.py`. Accepted
-  trade-off (2026-09-21) — every current consumer already depends on
-  NiceGUI directly anyway. Re-splitting into a separate package (e.g.
-  `redberry-nicegui-kit`) remains an option if a framework-free consumer
-  ever appears; not done preemptively.
+  **Consequence (updated v0.10.0)**: NiceGUI is the optional extra `redberry-webkit[nicegui]`, not a base
+  dependency: an app that only uses `web`/`bootstrap` no longer installs NiceGUI's dependency tree. Consumers of
+  `redberry_webkit.ui` must ask for the extra. The tests install it through `requirements.dev.txt`.
 
   **Testing `ui.py` — no Selenium/browser.** `nicegui.testing.User`
   (in-process DOM simulation) is what the tests use, not

@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.10.0
+
+- **`nicegui` is no longer a dependency**: it moved to the optional extra `redberry-webkit[nicegui]`. Only projects
+  that import `redberry_webkit.ui` (the legacy NiceGUI helpers, today ragbot) need it; Jinja2/HTMX apps
+  (`web`, `bootstrap`) install without NiceGUI and its dependency tree. Importing `redberry_webkit.ui` without the
+  extra raises the usual `ModuleNotFoundError: nicegui`. No code change.
+
 ## v0.9.0
 
 - **`WebApp.add_background(factory)`**: run an extra coroutine (collector, poller, retention purge) for the app's
