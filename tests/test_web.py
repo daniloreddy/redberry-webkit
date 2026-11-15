@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 from markupsafe import Markup
 
 from redberry_webkit.web import (
@@ -117,6 +118,53 @@ def test_parse_config_form_types() -> None:
 
     assert error == ""
     assert updates == {"A": "x", "N": "5", "B": "true"}
+
+
+_LEVEL = ConfigField("LEVEL", "Livello", type=FieldType.SELECT, options=("DEBUG", "INFO", "WARNING"))
+
+
+def test_render_config_select_marks_current_option() -> None:
+    html = _layout().render_config([_LEVEL], {"LEVEL": "INFO"})
+
+    assert '<select name="LEVEL">' in html
+    assert '<option value="INFO" selected>INFO</option>' in html
+    assert '<option value="DEBUG">DEBUG</option>' in html
+    assert "non in elenco" not in html
+
+
+@pytest.mark.parametrize(("stored", "placeholder"), [("WARN", "WARN (non in elenco)"), ("", "(non impostato)")])
+def test_render_config_select_keeps_unlisted_value_with_placeholder(stored: str, placeholder: str) -> None:
+    # Without the placeholder the browser would preselect DEBUG and any save would silently overwrite the value.
+    html = _layout().render_config([_LEVEL], {"LEVEL": stored} if stored else {})
+
+    assert f'<option value="" selected>{placeholder}</option>' in html
+    assert html.count(" selected>") == 1
+
+
+def test_render_config_select_escapes_unlisted_value() -> None:
+    html = _layout().render_config([_LEVEL], {"LEVEL": "<b>x</b>"})
+
+    assert "<b>x</b>" not in html
+
+
+def test_parse_config_form_select() -> None:
+    assert parse_config_form([_LEVEL], {"LEVEL": "WARNING"}) == ({"LEVEL": "WARNING"}, "")
+    assert parse_config_form([_LEVEL], {"LEVEL": ""}) == ({}, "")
+    assert parse_config_form([_LEVEL], {"LEVEL": "TRACE"}) == ({}, "Valore non valido per Livello")
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"type": FieldType.SELECT},
+        {"type": FieldType.SELECT, "options": ("A", " ")},
+        {"type": FieldType.SELECT, "options": ("A",), "password": True},
+        {"options": ("A",)},
+    ],
+)
+def test_config_field_rejects_invalid_select_definition(kwargs: dict[str, object]) -> None:
+    with pytest.raises(ValueError):
+        ConfigField("K", "K", **kwargs)  # type: ignore[arg-type]
 
 
 def test_parse_config_form_unchecked_bool_is_false() -> None:

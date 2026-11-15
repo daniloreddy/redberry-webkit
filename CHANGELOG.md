@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.11.0
+
+- **New `FieldType.SELECT`** for the config page: `ConfigField(..., type=FieldType.SELECT, options=("A", "B"))`
+  renders a `<select>` with the current value preselected; a posted value outside `options` is rejected by
+  `parse_config_form()` ("Valore non valido per <label>"). A stored value not in `options` (or unset) is shown as
+  a first `"<value> (non in elenco)"` / `"(non impostato)"` option posting blank, so saving other settings keeps it
+  instead of silently switching to the first option. `ConfigField` raises `ValueError` for a SELECT without
+  options, a SELECT password, or `options` on a non-SELECT field. `app.css` styles `.wk-form select` like the inputs;
+  the config golden fixture gained a select field.
+
 ## v0.10.1
 
 - **Fix: the "Rimuovi il valore attuale" checkbox on `/ui/config` now works.** `create_app`'s config save handler

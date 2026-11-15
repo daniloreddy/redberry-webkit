@@ -5,6 +5,12 @@
     <label>
       {% if f.type == "bool" %}
         <input type="checkbox" name="{{ f.key }}"{% if f.value == "true" %} checked{% endif %}> {{ f.label }}
+      {% elif f.type == "select" %}
+        {{ f.label }}
+        <select name="{{ f.key }}">
+          {% if f.value not in f.options %}<option value="" selected>{{ f.value ~ " (non in elenco)" if f.value else "(non impostato)" }}</option>{% endif %}
+          {% for o in f.options %}<option value="{{ o }}"{% if o == f.value %} selected{% endif %}>{{ o }}</option>{% endfor %}
+        </select>
       {% else %}
         {{ f.label }}
         <input type="{{ 'password' if f.password else ('number' if f.type == 'number' else 'text') }}"

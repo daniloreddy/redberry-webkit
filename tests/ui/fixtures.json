@@ -12,9 +12,10 @@
     { "key": "PORT", "label": "Port", "help": "", "type": "number" },
     { "key": "DEBUG", "label": "Debug", "help": "", "type": "bool" },
     { "key": "NOTE", "label": "Note", "help": "", "type": "text" },
-    { "key": "TOKEN", "label": "Token", "help": "", "type": "text", "password": true }
+    { "key": "TOKEN", "label": "Token", "help": "", "type": "text", "password": true },
+    { "key": "LEVEL", "label": "Level", "help": "", "type": "select", "options": ["DEBUG", "INFO"] }
   ],
-  "values": { "TZ": "Europe/Rome", "PORT": "8000", "DEBUG": "true", "NOTE": "a & b <c", "TOKEN": "secret" },
+  "values": { "TZ": "Europe/Rome", "PORT": "8000", "DEBUG": "true", "NOTE": "a & b <c", "TOKEN": "secret", "LEVEL": "INFO" },
   "cases": {
     "layout_full": { "kind": "layout", "title": "Dashboard", "nav_current": "log", "footer_right": "v1", "favicon": true, "logo": true },
     "layout_minimal": { "kind": "layout", "title": "Dashboard", "nav_current": "", "footer_right": "", "favicon": false, "logo": false },

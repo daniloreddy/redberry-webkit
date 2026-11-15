@@ -41,9 +41,16 @@ def _layout(case: dict[str, Any]) -> WebLayout:
 
 
 def _fields() -> list[ConfigField]:
-    types = {"text": FieldType.TEXT, "number": FieldType.NUMBER, "bool": FieldType.BOOL}
+    types = {"text": FieldType.TEXT, "number": FieldType.NUMBER, "bool": FieldType.BOOL, "select": FieldType.SELECT}
     return [
-        ConfigField(f["key"], f["label"], f.get("help", ""), types[f["type"]], f.get("password", False))
+        ConfigField(
+            f["key"],
+            f["label"],
+            f.get("help", ""),
+            types[f["type"]],
+            f.get("password", False),
+            tuple(f.get("options", ())),
+        )
         for f in _FIXTURES["fields"]
     ]
 

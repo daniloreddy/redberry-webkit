@@ -45,17 +45,31 @@ class FieldType(Enum):
     TEXT = "text"
     NUMBER = "number"
     BOOL = "bool"
+    SELECT = "select"
 
 
 @dataclass(frozen=True)
 class ConfigField:
-    """One runtime-editable config key shown on the config page. `password` never echoes the current value."""
+    """One runtime-editable config key shown on the config page. `password` never echoes the current value.
+
+    `options` is the closed list of values of a `FieldType.SELECT` field (required there, forbidden elsewhere).
+    """
 
     key: str
     label: str
     help: str = ""
     type: FieldType = FieldType.TEXT
     password: bool = False
+    options: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.type is FieldType.SELECT:
+            if not self.options or any(not o.strip() for o in self.options):
+                raise ValueError(f"ConfigField {self.key}: a SELECT field needs non-blank options")
+            if self.password:
+                raise ValueError(f"ConfigField {self.key}: a SELECT field cannot be a password")
+        elif self.options:
+            raise ValueError(f"ConfigField {self.key}: options are only for SELECT fields")
 
 
 ASSET_CACHE_CONTROL = "public, max-age=86400"
@@ -103,8 +117,9 @@ def parse_config_form(fields: Sequence[ConfigField], form: Mapping[str, str]) ->
     """Turn a posted config form into `ConfigManager.update_many()` input.
 
     Returns `(updates, error)`; a non-empty `error` is a user-facing message and `updates` must not be saved.
-    Blank text/number/password values are skipped (a blank field never wipes a stored key); an unchecked
-    checkbox posts nothing and is stored as "false".
+    Blank text/number/password/select values are skipped (a blank field never wipes a stored key; a select posts
+    blank for its "(non in elenco)" placeholder, keeping the stored value); an unchecked checkbox posts nothing and
+    is stored as "false". A select value outside its `options` is an error.
     """
     updates: dict[str, str] = {}
     for field in fields:
@@ -119,6 +134,8 @@ def parse_config_form(fields: Sequence[ConfigField], form: Mapping[str, str]) ->
             except ValueError:
                 return {}, f"Valore non numerico per {field.label}"
             updates[field.key] = value
+        elif field.type is FieldType.SELECT and value not in field.options:
+            return {}, f"Valore non valido per {field.label}"
         else:
             updates[field.key] = value
     return updates, ""
@@ -214,6 +231,7 @@ class WebLayout:
                 "type": f.type.value,
                 "password": f.password,
                 "value": "" if f.password else values.get(f.key, ""),
+                "options": list(f.options),
             }
             for f in fields
         ]

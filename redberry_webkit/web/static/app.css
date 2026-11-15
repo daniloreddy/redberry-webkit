@@ -121,7 +121,8 @@ html.wk-has-live-status .refresh-lbl { display: none; }
 .wk-form label { display: block; margin-bottom: 14px; }
 .wk-form input[type="text"],
 .wk-form input[type="number"],
-.wk-form input[type="password"] {
+.wk-form input[type="password"],
+.wk-form select {
   width: 100%; margin-top: 4px; padding: 8px 10px; font-size: 14px;
   border: 1px solid var(--border); border-radius: 6px;
   background: var(--surface-2); color: var(--text);
