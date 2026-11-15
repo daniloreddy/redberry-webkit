@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.12.0
+
+- **Security headers from `create_app`**: every response gets `X-Content-Type-Options: nosniff` (no MIME sniffing
+  of served content) and `X-Frame-Options: DENY` (no framing of the dashboard/login: clickjacking). Outermost
+  middleware, so gate redirects and static assets are covered too. Set with `setdefault`: a project route that
+  needs another policy (e.g. `SAMEORIGIN`) sets the header itself and keeps it. Projects that added their own
+  `_security_headers` middleware (mid-service) can drop it.
+
 ## v0.11.0
 
 - **New `FieldType.SELECT`** for the config page: `ConfigField(..., type=FieldType.SELECT, options=("A", "B"))`

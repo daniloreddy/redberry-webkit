@@ -6,7 +6,8 @@ A project describes itself with an `AppSpec` and calls `create_app`; it gets bac
 FastAPI app plus the shared objects (config, auth, metrics, layout, limiter). What `create_app` wires:
 .env loading, logging with credential redaction, runtime config (hot reload), dashboard auth (login/logout
 routes, `/ui/*` gate), `/health`, `/` redirect, the `/ui/config` page, branding assets, the shared static
-assets, rate limiting and the bearer-token dependency for API routes. `run` is the matching CLI entry point.
+assets, rate limiting, security headers (nosniff, X-Frame-Options DENY) and the bearer-token dependency for
+API routes. `run` is the matching CLI entry point.
 """
 
 from __future__ import annotations
@@ -177,6 +178,8 @@ class WebApp:
         self.app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
         self.app.add_middleware(SlowAPIMiddleware)
         self.app.middleware("http")(self._auth_gate)
+        # Registered last = outermost: also covers the gate's redirects and the static mounts.
+        self.app.middleware("http")(self._security_headers)
         self.app.include_router(self._build_router())
         for router in spec.routers:
             self.app.include_router(router)
@@ -262,6 +265,13 @@ class WebApp:
                 return await call_next(request)
             return RedirectResponse(url="/login", status_code=302)
         return await call_next(request)
+
+    async def _security_headers(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        response = await call_next(request)
+        # setdefault: a project route that needs a different policy sets its own header and keeps it.
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        return response
 
     # --- routes ---------------------------------------------------------------------------------
 

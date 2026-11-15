@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
-from fastapi import Depends, Request
+from fastapi import Depends, Request, Response
 from fastapi.testclient import TestClient
 
 from redberry_webkit.bootstrap import AppSpec, WebApp, create_app
@@ -77,6 +77,22 @@ def test_ui_requires_auth_redirects_to_login(client: TestClient) -> None:
 def test_docs_disabled_when_not_dev(client: TestClient) -> None:
     assert client.get("/docs").status_code == 404
     assert client.get("/openapi.json").status_code == 404
+
+
+def test_security_headers_on_every_response(client: TestClient) -> None:
+    for path in ("/health", "/login", "/ui/", "/ui/_assets/app.css"):
+        response = client.get(path, follow_redirects=False)
+        assert response.headers["X-Content-Type-Options"] == "nosniff", path
+        assert response.headers["X-Frame-Options"] == "DENY", path
+
+
+def test_security_headers_keep_a_route_own_value(web: WebApp) -> None:
+    @web.app.get("/embeddable")
+    async def embeddable() -> Response:
+        return Response("ok", headers={"X-Frame-Options": "SAMEORIGIN"})
+
+    with TestClient(web.app) as c:
+        assert c.get("/embeddable").headers["X-Frame-Options"] == "SAMEORIGIN"
 
 
 def test_cookie_name_derives_from_slug(web: WebApp) -> None:

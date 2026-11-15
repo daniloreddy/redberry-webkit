@@ -167,7 +167,9 @@ and passes *after* — see the style of the tests in `test_config.py` for
 
 - **`bootstrap.py`** — FastAPI wiring shared by every dashboard project (extra `[app]`: fastapi, uvicorn,
   python-multipart, slowapi). A project calls `create_app(AppSpec(...))` and only adds its own routers/endpoints;
-  it must not copy login routes, the auth gate, `/ui/config`, lifespan loops or the CLI back into its repo.
+  it must not copy login routes, the auth gate, `/ui/config`, lifespan loops, security headers
+  (`_security_headers`: nosniff + `X-Frame-Options: DENY`, `setdefault` so a route can override) or the CLI back
+  into its repo.
   Behaviour that tests patch lives on `WebApp` attributes (`login_max_concurrent`, `login_verify_timeout_s`,
   `auth`, `config`, `layout`), read at request time. Tests: `tests/test_bootstrap.py`.
 
