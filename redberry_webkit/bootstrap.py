@@ -47,6 +47,7 @@ from .web import (
     ConfigField,
     NavItem,
     WebLayout,
+    parse_config_clears,
     parse_config_form,
 )
 
@@ -333,11 +334,14 @@ class WebApp:
         @router.post(f"{UI_PREFIX}/config", response_model=None)
         async def config_save(request: Request) -> HTMLResponse | RedirectResponse:
             form = {k: v for k, v in (await request.form()).items() if isinstance(v, str)}
-            updates, error = parse_config_form(list(self.spec.config_fields), form)
-            problem = error or self._validate_config(updates)
+            fields = list(self.spec.config_fields)
+            updates, error = parse_config_form(fields, form)
+            clears = parse_config_clears(fields, form)
+            problem = error or _clear_conflict(fields, updates, clears) or self._validate_config(updates)
             if problem:
                 return self._render_config(problem, ok=False, status_code=400)
             self.config.update_many(updates)
+            self.config.clear_keys(clears)
             return RedirectResponse(url=f"{UI_PREFIX}/config?result=ok", status_code=303)
 
         return router
@@ -405,3 +409,11 @@ def run(import_string: str, web: WebApp) -> None:
         reload_dirs=[str(root / "app"), str(root / "static")] if args.dev else None,
         loop="asyncio",
     )
+
+
+def _clear_conflict(fields: Sequence[ConfigField], updates: dict[str, str], clears: list[str]) -> str:
+    """Return an error when a password field has both a new value and a ticked remove checkbox, else ""."""
+    labels = [f.label for f in fields if f.key in clears and f.key in updates]
+    if not labels:
+        return ""
+    return f'{", ".join(labels)}: scrivi un valore nuovo oppure spunta "Rimuovi il valore attuale", non entrambi'

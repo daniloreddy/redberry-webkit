@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.10.1
+
+- **Fix: the "Rimuovi il valore attuale" checkbox on `/ui/config` now works.** `create_app`'s config save handler
+  never called `parse_config_clears()`/`ConfigManager.clear_keys()` (both existed since v0.6.0), so ticking it on a
+  password field did nothing. A ticked box now removes the key from `.env` (back to its default). A new value
+  typed in the same field together with the ticked box is rejected (400, nothing saved): the two contradict.
+
 ## v0.10.0
 
 - **`nicegui` is no longer a dependency**: it moved to the optional extra `redberry-webkit[nicegui]`. Only projects

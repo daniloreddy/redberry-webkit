@@ -45,8 +45,9 @@ whether this package already covers it.
 
 - **`config.py`** — `update_many()`: a key that doesn't match `_KEY_RE` →
   rejected; an empty/whitespace value → silently skipped (a UI save with a
-  blank field must never wipe an existing key — clearing one means editing
-  `.env` by hand); a value ending in a single backslash → rejected
+  blank field must never wipe an existing key — clearing one is the explicit
+  `clear_keys()`, driven by the password field's "Rimuovi il valore attuale"
+  checkbox; new value + ticked box = 400, nothing saved); a value ending in a single backslash → rejected
   (confirmed: `set_key(..., quote_mode="always")` still writes the line,
   but python-dotenv's own *reader* can't parse it back and
   `dotenv_values()` silently returns an empty dict for **the whole file**,

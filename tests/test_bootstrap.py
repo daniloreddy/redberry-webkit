@@ -24,6 +24,7 @@ def _spec(root: Path, **kwargs: object) -> AppSpec:
             ConfigField("REFRESH_ENABLED", "Auto-refresh", type=FieldType.BOOL),
             ConfigField("REFRESH_INTERVAL", "Intervallo", type=FieldType.NUMBER),
             ConfigField("RATE_LIMIT", "Rate limit"),
+            ConfigField("SMTP_TOKEN", "Token SMTP", password=True),
         ],
         **kwargs,  # type: ignore[arg-type]
     )
@@ -190,6 +191,34 @@ def test_config_page_save_roundtrip(client: TestClient, web: WebApp) -> None:
     assert web.config.get("REFRESH_INTERVAL") == "9"
     assert web.config.get("RATE_LIMIT") == "30/minute"
     assert 'value="9"' in client.get("/ui/config").text
+
+
+def test_config_page_clear_checkbox_removes_stored_value(client: TestClient, web: WebApp) -> None:
+    _login(client, web)
+    web.config.update_many({"SMTP_TOKEN": "s3cret"})
+    base = {"REFRESH_INTERVAL": "5", "RATE_LIMIT": "20/minute"}
+
+    kept = client.post("/ui/config", data={**base, "SMTP_TOKEN": ""}, follow_redirects=False)
+    assert kept.status_code == 303
+    assert web.config.get("SMTP_TOKEN") == "s3cret"
+
+    cleared = client.post("/ui/config", data={**base, "SMTP_TOKEN__clear": "on"}, follow_redirects=False)
+    assert cleared.status_code == 303
+    assert web.config.get("SMTP_TOKEN") == ""
+    assert "SMTP_TOKEN" not in web.config._env_path.read_text(encoding="utf-8")
+
+
+def test_config_page_rejects_new_value_with_clear_checkbox(client: TestClient, web: WebApp) -> None:
+    _login(client, web)
+    web.config.update_many({"SMTP_TOKEN": "s3cret"})
+    response = client.post(
+        "/ui/config",
+        data={"REFRESH_INTERVAL": "7", "RATE_LIMIT": "20/minute", "SMTP_TOKEN": "new", "SMTP_TOKEN__clear": "on"},
+    )
+    assert response.status_code == 400
+    assert "Token SMTP: scrivi un valore nuovo oppure spunta" in response.text
+    assert web.config.get("SMTP_TOKEN") == "s3cret"
+    assert web.config.get("REFRESH_INTERVAL") != "7"
 
 
 def test_config_page_rejects_invalid_values(client: TestClient, web: WebApp) -> None:
