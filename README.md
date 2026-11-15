@@ -61,7 +61,8 @@ scripts\checks.bat   # Windows
 scripts/checks.sh    # Linux/Mac
 ```
 
-Creates/activates the venv, installs `requirements.dev.txt`, runs `ruff check .`, `mypy redberry_webkit`, `pytest`.
+Creates/activates the venv, installs `requirements.dev.txt`, runs `ruff check .`, `ruff format --check .` (also enforces LF line endings; fix with `ruff format .`),
+`mypy redberry_webkit`, `pytest`.
 
 ## License
 

@@ -59,8 +59,7 @@ class MetricsStore:
         extra_json = json.dumps(rec.extra) if rec.extra is not None else None
         async with self._lock, aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                "INSERT INTO requests (timestamp, status, duration_s, error_message, extra) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO requests (timestamp, status, duration_s, error_message, extra) VALUES (?, ?, ?, ?, ?)",
                 (rec.timestamp, rec.status, rec.duration_s, rec.error_message, extra_json),
             )
             await db.commit()

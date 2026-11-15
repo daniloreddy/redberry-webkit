@@ -1,0 +1,6 @@
+# Default LF everywhere: this box has core.autocrlf, which would otherwise convert
+# every file to CRLF on checkout and silently drift.
+# *.bat is the sole exception: cmd.exe fails to find batch labels in LF files.
+* text=auto eol=lf
+*.bat text eol=crlf
+*.sh text eol=lf

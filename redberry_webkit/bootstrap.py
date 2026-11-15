@@ -193,7 +193,8 @@ class WebApp:
         return self._client_ip(request)
 
     async def verify_api_token(
-        self, credentials: HTTPAuthorizationCredentials | None = Depends(_BEARER),  # noqa: B008 - FastAPI dependency marker
+        self,
+        credentials: HTTPAuthorizationCredentials | None = Depends(_BEARER),  # noqa: B008 - FastAPI dependency marker
     ) -> str | None:
         """Depends() for routes outside /ui that need a bearer token; a no-op while API_TOKENS is unset."""
         raw = self.config.get("API_TOKENS", "")

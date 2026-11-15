@@ -92,9 +92,7 @@ def test_custom_expiry_key_path(tmp_path: Path) -> None:
     assert status.is_near_expiry(7 * 86400) is True
 
 
-async def test_watch_loop_logs_warning_when_near_expiry(
-    tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
+async def test_watch_loop_logs_warning_when_near_expiry(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
     path = tmp_path / ".credentials.json"
     _write_credentials(path, int((time.time() + 2 * 86400) * 1000))
 

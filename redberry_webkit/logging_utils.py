@@ -5,6 +5,7 @@ import re
 
 _REDACTED = "***"
 
+
 def _kv_pattern(key: str) -> re.Pattern[str]:
     # Matches both bare and quoted values: `key=value`, `key: "value"`, `key='value'`.
     # The quoted alternative must come first so the alternation prefers consuming the

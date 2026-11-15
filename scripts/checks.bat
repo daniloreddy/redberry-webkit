@@ -15,6 +15,8 @@ if not exist "venv\Lib\site-packages\ruff" (
 echo === ruff ===
 ruff check .
 if errorlevel 1 exit /b 1
+ruff format --check .
+if errorlevel 1 exit /b 1
 
 echo === mypy ===
 mypy redberry_webkit

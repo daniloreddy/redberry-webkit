@@ -40,6 +40,9 @@ packages = ["redberry_webkit"]
 target-version = "py311"
 line-length = 120
 
+[tool.ruff.format]
+line-ending = "lf"
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
