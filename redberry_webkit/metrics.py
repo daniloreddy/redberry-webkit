@@ -69,16 +69,19 @@ class MetricsStore:
         since = time.time() - hours * 3600
         # Same lock as record()/purge_old() — without it, a read interleaved with a
         # concurrent purge_old() delete can observe a partially-deleted table.
-        async with self._lock, aiosqlite.connect(self.db_path) as db:
-            async with db.execute(
+        async with (
+            self._lock,
+            aiosqlite.connect(self.db_path) as db,
+            db.execute(
                 "SELECT COUNT(*), "
                 "SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END), "
                 "SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END), "
                 "AVG(duration_s) "
                 "FROM requests WHERE timestamp >= ?",
                 (since,),
-            ) as cursor:
-                row = await cursor.fetchone()
+            ) as cursor,
+        ):
+            row = await cursor.fetchone()
         total, ok, errors, avg_duration = row if row else (0, 0, 0, None)
         return {
             "total_requests": total or 0,
@@ -95,13 +98,16 @@ class MetricsStore:
         is exposed to a wider audience than the caller that recorded it (e.g. a
         dashboard visible to more users than just the recording service).
         """
-        async with self._lock, aiosqlite.connect(self.db_path) as db:
-            async with db.execute(
+        async with (
+            self._lock,
+            aiosqlite.connect(self.db_path) as db,
+            db.execute(
                 "SELECT timestamp, status, duration_s, error_message, extra "
                 "FROM requests ORDER BY timestamp DESC LIMIT ?",
                 (limit,),
-            ) as cursor:
-                rows = await cursor.fetchall()
+            ) as cursor,
+        ):
+            rows = await cursor.fetchall()
         records = [
             MetricsRecord(
                 timestamp=row[0],

@@ -46,6 +46,7 @@ class FieldType(Enum):
     NUMBER = "number"
     BOOL = "bool"
     SELECT = "select"
+    TEXTAREA = "textarea"
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,7 @@ class ConfigField:
     """One runtime-editable config key shown on the config page. `password` never echoes the current value.
 
     `options` is the closed list of values of a `FieldType.SELECT` field (required there, forbidden elsewhere).
+    A `FieldType.TEXTAREA` field holds multi-line text (never a password).
     """
 
     key: str
@@ -70,6 +72,8 @@ class ConfigField:
                 raise ValueError(f"ConfigField {self.key}: a SELECT field cannot be a password")
         elif self.options:
             raise ValueError(f"ConfigField {self.key}: options are only for SELECT fields")
+        if self.type is FieldType.TEXTAREA and self.password:
+            raise ValueError(f"ConfigField {self.key}: a TEXTAREA field cannot be a password")
 
 
 ASSET_CACHE_CONTROL = "public, max-age=86400"
@@ -119,11 +123,15 @@ def parse_config_form(fields: Sequence[ConfigField], form: Mapping[str, str]) ->
     Returns `(updates, error)`; a non-empty `error` is a user-facing message and `updates` must not be saved.
     Blank text/number/password/select values are skipped (a blank field never wipes a stored key; a select posts
     blank for its "(non in elenco)" placeholder, keeping the stored value); an unchecked checkbox posts nothing and
-    is stored as "false". A select value outside its `options` is an error.
+    is stored as "false". A select value outside its `options` is an error. Textarea line endings are normalized to
+    LF (browsers post CRLF).
     """
     updates: dict[str, str] = {}
     for field in fields:
-        value = form.get(field.key, "").strip()
+        value = form.get(field.key, "")
+        if field.type is FieldType.TEXTAREA:
+            value = value.replace("\r\n", "\n").replace("\r", "\n")
+        value = value.strip()
         if field.type is FieldType.BOOL:
             updates[field.key] = "true" if value == "on" else "false"
         elif not value:

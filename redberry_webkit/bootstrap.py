@@ -14,10 +14,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import inspect
 import logging
 import os
 import re
-from collections.abc import AsyncIterator, Callable, Coroutine, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from logging.handlers import RotatingFileHandler
@@ -69,6 +70,7 @@ SKELETON_SECRET_KEYS: frozenset[str] = frozenset({"API_TOKENS"})
 LOGIN_MAX_CONCURRENT = 4
 LOGIN_VERIFY_TIMEOUT_S = 10
 CONFIG_RELOAD_INTERVAL_S = 5
+CONFIG_RELOAD_ERROR_AFTER = 5
 TOKEN_TTL_S = 7 * 24 * 3600
 
 _BEARER = HTTPBearer(auto_error=False)
@@ -164,6 +166,7 @@ class WebApp:
         )
         self.limiter = Limiter(key_func=self._rate_limit_key)
         self._background: list[Callable[[], Coroutine[Any, Any, None]]] = []
+        self._startup: list[Callable[[], Awaitable[None] | None]] = []
         self._login_semaphore = asyncio.Semaphore(self.login_max_concurrent)
 
         self.app = FastAPI(
@@ -230,19 +233,45 @@ class WebApp:
         """
         self._background.append(factory)
 
+    def add_startup(self, hook: Callable[[], Awaitable[None] | None]) -> None:
+        """Run ``hook()`` once in the lifespan, before the background tasks (sync or async, in registration order).
+
+        For initialization that must fail fast at boot (DB schema, migrations, required directories): an exception
+        aborts the startup instead of surfacing on the first request.
+        """
+        self._startup.append(hook)
+
     async def _config_reload_loop(self, interval_s: float) -> None:
+        failures = 0
         while True:
             await asyncio.sleep(interval_s)
             try:
                 self.config.reload_if_stale()
             except Exception:
                 # A transient .env read error must not end this loop (it would crash the server via
-                # _crash_on_task_error): keep the last-known values and retry on the next poll.
-                logger.warning("config reload failed, retrying on next poll", exc_info=True)
+                # _crash_on_task_error, and a restart cannot fix an unreadable .env): keep the last-known
+                # values and retry on the next poll, escalating once so a persistent failure is visible.
+                failures += 1
+                if failures == CONFIG_RELOAD_ERROR_AFTER:
+                    logger.error(
+                        "config reload failed %d times in a row, still serving last-known values",
+                        failures,
+                        exc_info=True,
+                    )
+                else:
+                    logger.warning("config reload failed, retrying on next poll", exc_info=True)
+                continue
+            if failures >= CONFIG_RELOAD_ERROR_AFTER:
+                logger.info("config reload recovered after %d failures", failures)
+            failures = 0
 
     @asynccontextmanager
     async def _lifespan(self, app: FastAPI) -> AsyncIterator[None]:
         await self.metrics.init_db()
+        for hook in self._startup:
+            result = hook()
+            if inspect.isawaitable(result):
+                await result
         purge_task = asyncio.create_task(purge_loop(self.auth))
         purge_task.add_done_callback(_crash_on_task_error)
         config_task = asyncio.create_task(self._config_reload_loop(CONFIG_RELOAD_INTERVAL_S))

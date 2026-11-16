@@ -167,6 +167,30 @@ def test_config_field_rejects_invalid_select_definition(kwargs: dict[str, object
         ConfigField("K", "K", **kwargs)  # type: ignore[arg-type]
 
 
+_MSG = ConfigField("MSG", "Messaggio", type=FieldType.TEXTAREA)
+
+
+def test_render_config_textarea_keeps_lines_and_escapes() -> None:
+    html = _layout().render_config([_MSG], {"MSG": "Ciao {{name}}\n<b>riga 2</b>"})
+
+    assert '<textarea name="MSG" rows="6">Ciao {{name}}\n&lt;b&gt;riga 2&lt;/b&gt;</textarea>' in html
+
+
+def test_parse_config_form_textarea_normalizes_line_endings() -> None:
+    assert parse_config_form([_MSG], {"MSG": "  a\r\nb\rc\n  "}) == ({"MSG": "a\nb\nc"}, "")
+    assert parse_config_form([_MSG], {"MSG": " \r\n "}) == ({}, "")
+
+
+def test_parse_config_form_text_keeps_carriage_returns_untouched() -> None:
+    # Only textareas are normalized: a single-line field never receives line breaks from a browser.
+    assert parse_config_form([ConfigField("T", "T")], {"T": "a\r\nb"}) == ({"T": "a\r\nb"}, "")
+
+
+def test_config_field_rejects_textarea_password() -> None:
+    with pytest.raises(ValueError):
+        ConfigField("K", "K", type=FieldType.TEXTAREA, password=True)
+
+
 def test_parse_config_form_unchecked_bool_is_false() -> None:
     updates, error = parse_config_form([ConfigField("B", "B", type=FieldType.BOOL)], {})
 

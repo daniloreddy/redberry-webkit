@@ -285,6 +285,73 @@ def test_project_static_dir_is_mounted(tmp_path: Path, monkeypatch: pytest.Monke
         assert c.get("/ui/_static/app.css").status_code == 200
 
 
+def test_add_startup_runs_sync_and_async_hooks_in_order_before_background(web: WebApp) -> None:
+    calls: list[str] = []
+
+    def sync_hook() -> None:
+        calls.append("sync")
+
+    async def async_hook() -> None:
+        calls.append("async")
+
+    async def loop() -> None:
+        calls.append("background")
+
+    web.add_startup(sync_hook)
+    web.add_startup(async_hook)
+    web.add_background(loop)
+    with TestClient(web.app) as c:
+        assert c.get("/health").status_code == 200
+    assert calls == ["sync", "async", "background"]
+
+
+def test_add_startup_failure_aborts_startup(web: WebApp) -> None:
+    def broken() -> None:
+        raise RuntimeError("schema init failed")
+
+    web.add_startup(broken)
+    with pytest.raises(RuntimeError, match="schema init failed"), TestClient(web.app):
+        pass
+
+
+async def test_config_reload_escalates_once_then_logs_recovery(
+    web: WebApp, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import asyncio
+
+    from redberry_webkit import bootstrap
+
+    outcomes = ["fail"] * (bootstrap.CONFIG_RELOAD_ERROR_AFTER + 2) + ["ok", "stop"]
+
+    def fake_reload() -> bool:
+        outcome = outcomes.pop(0)
+        if outcome == "fail":
+            raise OSError("locked")
+        if outcome == "stop":
+            raise asyncio.CancelledError
+        return False
+
+    monkeypatch.setattr(web.config, "reload_if_stale", fake_reload)
+    with caplog.at_level("INFO", logger="redberry_webkit.bootstrap"), pytest.raises(asyncio.CancelledError):
+        await web._config_reload_loop(0)
+
+    errors = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert len(errors) == 1
+    assert "failed 5 times in a row" in errors[0].getMessage()
+    assert any("recovered after 7 failures" in r.getMessage() for r in caplog.records)
+
+
+def test_config_page_saves_textarea_with_lf(client: TestClient, web: WebApp, tmp_path: Path) -> None:
+    web.spec.config_fields = [ConfigField("WELCOME", "Messaggio", type=FieldType.TEXTAREA)]
+    _login(client, web)
+    response = client.post("/ui/config", data={"WELCOME": "Ciao\r\n{{name}}"}, follow_redirects=False)
+
+    assert response.status_code in (200, 303)
+    assert web.config.get("WELCOME") == "Ciao\n{{name}}"
+    web.config._load()
+    assert web.config.get("WELCOME") == "Ciao\n{{name}}"
+
+
 def test_add_background_runs_for_the_app_lifetime(web: WebApp) -> None:
     import asyncio
 

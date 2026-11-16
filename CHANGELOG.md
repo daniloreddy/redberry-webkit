@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.13.0
+
+- **New `FieldType.TEXTAREA`** for the config page: `ConfigField(..., type=FieldType.TEXTAREA)` renders a
+  `<textarea rows="6">` (multi-line values, e.g. message templates). `parse_config_form()` normalizes CRLF/CR to LF
+  before saving; `.env` round-trip of embedded newlines was already supported by `ConfigManager.update_many()`.
+  A TEXTAREA cannot be a password (`ValueError`). `app.css` styles `.wk-form textarea` like the inputs; the config
+  golden fixture gained a textarea field.
+- **New `WebApp.add_startup(hook)`**: sync or async callables run once in the lifespan, in registration order,
+  after `metrics.init_db()` and before the background tasks. An exception aborts the startup (fail-fast for DB
+  schema/migrations instead of failing on the first request). Register right after `create_app()`.
+- **Config reload logging**: the `.env` reload loop still retries forever on errors (a restart cannot fix an
+  unreadable `.env`, and the app keeps serving last-known values), but now logs one `ERROR` after
+  `CONFIG_RELOAD_ERROR_AFTER` (5) consecutive failures and an `INFO` when it recovers.
+- **ruff `SIM` rule enabled** (`contextlib.suppress` in `auth.py`, merged `async with` in `metrics.py`).
+
 ## v0.12.0
 
 - **Security headers from `create_app`**: every response gets `X-Content-Type-Options: nosniff` (no MIME sniffing

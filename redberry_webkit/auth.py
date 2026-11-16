@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import hmac
 import itertools
@@ -99,10 +100,8 @@ class AuthManager:
             # way), and a symlink-following chmod on a just-created temp file has no
             # meaningful race to defend against (nothing else can be pointed at this path
             # yet, it was just created with a unique per-call name).
-            try:
+            with contextlib.suppress(OSError):  # best-effort — e.g. unsupported on this filesystem/OS (Windows)
                 os.chmod(tmp_path, stat.S_IRUSR | stat.S_IWUSR)  # owner read/write only
-            except OSError:
-                pass  # best-effort — e.g. unsupported on this filesystem/OS (Windows)
             os.replace(tmp_path, self.auth_file)
 
     @property

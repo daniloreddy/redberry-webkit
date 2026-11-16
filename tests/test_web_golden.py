@@ -41,7 +41,13 @@ def _layout(case: dict[str, Any]) -> WebLayout:
 
 
 def _fields() -> list[ConfigField]:
-    types = {"text": FieldType.TEXT, "number": FieldType.NUMBER, "bool": FieldType.BOOL, "select": FieldType.SELECT}
+    types = {
+        "text": FieldType.TEXT,
+        "number": FieldType.NUMBER,
+        "bool": FieldType.BOOL,
+        "select": FieldType.SELECT,
+        "textarea": FieldType.TEXTAREA,
+    }
     return [
         ConfigField(
             f["key"],

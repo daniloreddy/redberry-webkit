@@ -11,6 +11,9 @@
           {% if f.value not in f.options %}<option value="" selected>{{ f.value ~ " (non in elenco)" if f.value else "(non impostato)" }}</option>{% endif %}
           {% for o in f.options %}<option value="{{ o }}"{% if o == f.value %} selected{% endif %}>{{ o }}</option>{% endfor %}
         </select>
+      {% elif f.type == "textarea" %}
+        {{ f.label }}
+        <textarea name="{{ f.key }}" rows="6">{{ f.value }}</textarea>
       {% else %}
         {{ f.label }}
         <input type="{{ 'password' if f.password else ('number' if f.type == 'number' else 'text') }}"
