@@ -167,6 +167,7 @@ class WebApp:
         self.limiter = Limiter(key_func=self._rate_limit_key)
         self._background: list[Callable[[], Coroutine[Any, Any, None]]] = []
         self._startup: list[Callable[[], Awaitable[None] | None]] = []
+        self._shutdown: list[Callable[[], Awaitable[None] | None]] = []
         self._login_semaphore = asyncio.Semaphore(self.login_max_concurrent)
 
         self.app = FastAPI(
@@ -241,6 +242,14 @@ class WebApp:
         """
         self._startup.append(hook)
 
+    def add_shutdown(self, hook: Callable[[], Awaitable[None] | None]) -> None:
+        """Run ``hook()`` once at shutdown, after the background tasks are cancelled (sync or async, reverse order).
+
+        The counterpart of `add_startup` for resources that need an orderly close (pollers, client sessions). An
+        exception is logged and does not stop the remaining hooks. Runs only if the startup completed.
+        """
+        self._shutdown.append(hook)
+
     async def _config_reload_loop(self, interval_s: float) -> None:
         failures = 0
         while True:
@@ -284,6 +293,14 @@ class WebApp:
         finally:
             for task in (purge_task, config_task, *extra):
                 task.cancel()
+            for hook in reversed(self._shutdown):
+                try:
+                    result = hook()
+                    if inspect.isawaitable(result):
+                        await result
+                except Exception:
+                    # Best effort: one failing close must not skip the others.
+                    logger.exception("shutdown hook %s failed", getattr(hook, "__qualname__", hook))
 
     async def _auth_gate(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         path = request.url.path

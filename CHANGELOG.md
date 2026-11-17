@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.14.0
+
+- **New `WebApp.add_shutdown(hook)`**: sync or async callables run once when the lifespan ends, after the
+  background tasks are cancelled, in reverse registration order (counterpart of `add_startup`, e.g. stop a
+  Telegram poller or close a client session). A failing hook is logged (`logger.exception`) and the remaining
+  ones still run. Not run when the startup itself failed. Register right after `create_app()`.
+
 ## v0.13.0
 
 - **New `FieldType.TEXTAREA`** for the config page: `ConfigField(..., type=FieldType.TEXTAREA)` renders a

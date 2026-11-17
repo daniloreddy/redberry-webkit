@@ -314,6 +314,69 @@ def test_add_startup_failure_aborts_startup(web: WebApp) -> None:
         pass
 
 
+def test_add_shutdown_runs_hooks_in_reverse_order_after_background_cancel(web: WebApp) -> None:
+    import asyncio
+
+    calls: list[str] = []
+    started = asyncio.Event()
+
+    async def loop() -> None:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            calls.append("cancelled")
+            raise
+
+    def sync_hook() -> None:
+        calls.append("sync")
+
+    async def async_hook() -> None:
+        await asyncio.sleep(0)
+        calls.append("async")
+
+    web.add_background(loop)
+    web.add_shutdown(sync_hook)
+    web.add_shutdown(async_hook)
+    with TestClient(web.app) as c:
+        assert c.get("/health").status_code == 200
+        assert calls == []
+    assert calls == ["cancelled", "async", "sync"]
+
+
+def test_add_shutdown_failure_is_logged_and_does_not_skip_other_hooks(
+    web: WebApp, caplog: pytest.LogCaptureFixture
+) -> None:
+    calls: list[str] = []
+
+    def first() -> None:
+        calls.append("first")
+
+    def broken() -> None:
+        raise RuntimeError("close failed")
+
+    web.add_shutdown(first)
+    web.add_shutdown(broken)
+    with TestClient(web.app):
+        pass
+    assert calls == ["first"]
+    assert "shutdown hook" in caplog.text
+    assert "close failed" in caplog.text
+
+
+def test_add_shutdown_not_run_when_startup_fails(web: WebApp) -> None:
+    calls: list[str] = []
+
+    def broken() -> None:
+        raise RuntimeError("schema init failed")
+
+    web.add_startup(broken)
+    web.add_shutdown(lambda: calls.append("shutdown"))
+    with pytest.raises(RuntimeError), TestClient(web.app):
+        pass
+    assert calls == []
+
+
 async def test_config_reload_escalates_once_then_logs_recovery(
     web: WebApp, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

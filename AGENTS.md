@@ -170,6 +170,9 @@ and passes *after* — see the style of the tests in `test_config.py` for
   it must not copy login routes, the auth gate, `/ui/config`, lifespan loops, security headers
   (`_security_headers`: nosniff + `X-Frame-Options: DENY`, `setdefault` so a route can override) or the CLI back
   into its repo.
+  Lifecycle hooks: `add_startup` (fail-fast init, before the background tasks), `add_background` (loops for the
+  app's lifetime), `add_shutdown` (orderly close, reverse order, after the background tasks are cancelled, errors
+  logged and skipped).
   Behaviour that tests patch lives on `WebApp` attributes (`login_max_concurrent`, `login_verify_timeout_s`,
   `auth`, `config`, `layout`), read at request time. Tests: `tests/test_bootstrap.py`.
 
