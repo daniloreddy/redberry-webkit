@@ -44,6 +44,10 @@ body {
   line-height: 1.5;
 }
 
+/* Content links follow the theme (UA default blue/purple is unreadable on the dark surface);
+   .nav-link and other classed anchors set their own color. */
+a { color: var(--primary); }
+
 /* Top bar */
 .topbar { background: var(--header); color: #fff; position: sticky; top: 0; z-index: 10; }
 .topbar-inner {

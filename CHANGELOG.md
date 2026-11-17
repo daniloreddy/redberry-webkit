@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.14.1
+
+- **`app.css`: content links use `var(--primary)`** (`a { color: var(--primary); }`): with no rule the browser
+  default blue/purple was unreadable on the dark theme. Classed anchors (`.nav-link`, project buttons) keep their
+  own color. Projects that added the same rule in their `static/app.css` can drop it.
+
 ## v0.14.0
 
 - **New `WebApp.add_shutdown(hook)`**: sync or async callables run once when the lifespan ends, after the
