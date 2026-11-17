@@ -28,8 +28,10 @@ Last updated: 2026-11-07. Read this before asking "what did we decide".
 
 ## Enforcement
 
-- `redberry-webapp-template/tools/check_template.py` (scaffold + invariants + scaffold ruff/pytest + webkit pin +
-  `--trust`), run by the hooks installed with `python tools/install_hooks.py` (not versioned: rerun after a clone).
+- `redberry-webapp-template/tools/check_template.py` (scaffold + invariants + scaffold ruff/pytest + `--trust`; a
+  template pin behind this version is only a warning), run by the hooks installed with `python tools/install_hooks.py`
+  (not versioned: rerun after a clone). Releases are not coupled to the template: see
+  `~/.claude/guidelines/webkit-release.md`.
 - This repo: `scripts/checks.bat|sh` (ruff check, ruff format --check with LF line endings, mypy, pytest); pre-push hook runs the same.
 
 ## Traps already hit
